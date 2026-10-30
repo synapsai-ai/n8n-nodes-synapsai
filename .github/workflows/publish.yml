@@ -4,9 +4,9 @@
 # (a prerequisite of the n8n Creator Portal verification). Provenance proves the tarball was built by THIS
 # workflow, from THIS repository and commit.
 #
-# First release bootstrap (founder, after the PR merges): from a clean checkout of the merge commit,
-#   run `npm ci && npm run verify && npm publish --access public` with npm 2FA.
-#   npm requires the package to exist before configuring Trusted Publishing; this first publish claims the name.
+# First functional release (founder, after the PR merges): from a clean checkout of the merge commit,
+#   run `npm ci && npm run verify && RELEASE_MODE=true npm publish --access public` with npm 2FA.
+#   The name is already reserved by the 0.0.1 placeholder; this publishes the functional 0.2.1 package.
 # Then configure npm Trusted Publisher (owner synapsai-ai, repo n8n-nodes-synapsai, workflow publish.yml,
 #   environment npm-publish) and package publishing access to require 2FA and disallow tokens.
 # Keep the GitHub npm-publish environment's required reviewer and a tag ruleset for `*.*.*`.
@@ -55,3 +55,5 @@ jobs:
 
       - name: Publish with provenance
         run: npm publish --provenance --access public
+        env:
+          RELEASE_MODE: 'true'

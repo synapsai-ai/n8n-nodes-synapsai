@@ -98,14 +98,14 @@ npm run dev          # n8n with this node loaded, at http://localhost:5678
 
 ## Release
 
-The first publish must happen manually because npm Trusted Publishing can only be configured after the package exists.
-After this PR merges, use a clean checkout of its merge commit with npm 2FA and run:
+The `n8n-nodes-synapsai@0.0.1` placeholder already reserves the npm name. After this PR merges, publish the first
+functional version (`0.2.1`) manually from a clean checkout of its merge commit with npm 2FA:
 
 ```bash
 npm ci && npm run verify && RELEASE_MODE=true npm publish --access public
 ```
 
-This first publish claims the name and closes the package-squatting exposure. Then configure npm Trusted Publisher for
+This publishes the functional node package. Then configure npm Trusted Publisher for
 owner `synapsai-ai`, repo `n8n-nodes-synapsai`, workflow `publish.yml`, environment `npm-publish`; set package publishing
 to require 2FA and disallow tokens; create the GitHub `npm-publish` environment with a required reviewer and a tag
 ruleset matching `*.*.*`. Every later release (0.2.2+) is published with provenance by pushing a tag equal to
