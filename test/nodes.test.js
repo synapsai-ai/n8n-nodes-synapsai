@@ -26,7 +26,7 @@ const transport = require('../dist/nodes/shared/transport');
 
 const NOW = Math.floor(Date.now() / 1000);
 
-test('package: zero runtime dependencies, community keyword, both nodes and the credential registered', () => {
+test('package: zero runtime dependencies, community keyword, all nodes and credential registered', () => {
 	assert.equal(pkg.dependencies, undefined);
 	assert.ok(pkg.keywords.includes('n8n-community-node-package'));
 	assert.equal(pkg.license, 'MIT');
@@ -37,6 +37,7 @@ test('package: zero runtime dependencies, community keyword, both nodes and the 
 test('read-only AI Agent tool exposes only the approved read operations', () => {
 	const description = new SynapsAiTool().description;
 	assert.equal(description.usableAsTool, true);
+	assert.notEqual(new SynapsAi().description.usableAsTool, true);
 	const operations = description.properties
 		.filter((property) => property.name === 'operation')
 		.flatMap((property) => property.options.map((option) => option.value));
@@ -176,10 +177,10 @@ test('Ask: default idempotency key survives a new execution id for identical inp
 	});
 	await new SynapsAi().execute.call(ctx);
 	const first = ctx.http.calls[0].options.body.idempotencyKey;
-	ctx.getExecutionId = () => 'manual-retry-exec-99';
 	const retry = executeContext({
 		params: { resource: 'agent', operation: 'ask', agentKey: 'k', externalUserId: 'u', text: 'hi', waitForReply: false, options: {} },
 	});
+	retry.getExecutionId = () => 'manual-retry-exec-99';
 	await new SynapsAi().execute.call(retry);
 	assert.equal(retry.http.calls[0].options.body.idempotencyKey, first);
 	assert.match(first, /^n8n-[a-f0-9]{40}$/);
