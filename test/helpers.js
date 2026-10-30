@@ -43,13 +43,13 @@ function executeContext({
 	items = [{ json: {} }],
 	credentials = CREDENTIALS,
 	responder = () => ({}),
+	staticData = {},
 }) {
 	const http = httpFake(responder);
 	const state = {
 		waitTill: undefined,
 		resumeUrl: 'https://n8n.example.com/webhook-waiting/42/node-1?signature=abc',
 	};
-	const staticData = {};
 	const ctx = {
 		http,
 		state,
@@ -74,7 +74,7 @@ function executeContext({
 	return ctx;
 }
 
-function webhookContext({ body, headers, rawBody, credentials = CREDENTIALS, staticData = {} }) {
+function webhookContext({ body, headers, rawBody, credentials = CREDENTIALS, staticData = {}, executionId = 'exec-42' }) {
 	const res = {
 		statusCode: 200,
 		sent: undefined,
@@ -98,6 +98,7 @@ function webhookContext({ body, headers, rawBody, credentials = CREDENTIALS, sta
 		getBodyData: () => body,
 		getCredentials: async () => credentials,
 		getWorkflowStaticData: () => staticData,
+		getExecutionId: () => executionId,
 		getNode: fakeNode,
 	};
 }

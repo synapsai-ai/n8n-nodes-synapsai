@@ -670,6 +670,13 @@ export const properties: INodeProperties[] = [
 	},
 ];
 
+const WAITING_MESSAGE_TTL_MS = 24 * 60 * 60 * 1000;
+
+interface WaitingMessageBinding {
+	messageId: string;
+	createdAt: number;
+}
+
 export class SynapsAi implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'SynapsAI',
@@ -753,10 +760,19 @@ export class SynapsAi implements INodeType {
 		}
 		const state = this.getWorkflowStaticData('node') as IDataObject;
 		const message = body.message as IDataObject | undefined;
-		if (!state.waitingMessageId || message?.id !== state.waitingMessageId) {
+		const executionId = this.getExecutionId();
+		const waitingMessages = (state.waitingMessages ?? {}) as Record<string, WaitingMessageBinding>;
+		const binding = waitingMessages[executionId];
+		if (
+			!binding ||
+			Date.now() - binding.createdAt >= WAITING_MESSAGE_TTL_MS ||
+			message?.id !== binding.messageId
+		) {
 			response.status(401).json({ code: 'REPLY_MISMATCH' });
 			return { noWebhookResponse: true };
 		}
+		delete waitingMessages[executionId];
+		state.waitingMessages = waitingMessages;
 		return { webhookResponse: '', workflowData: [[{ json: replyItem(body) }]] };
 	}
 
@@ -788,7 +804,20 @@ export class SynapsAi implements INodeType {
 							);
 						}
 						const accepted = await ask.call(this, i, this.getSignedResumeUrl());
-						(this.getWorkflowStaticData('node') as IDataObject).waitingMessageId = accepted.messageId;
+						const state = this.getWorkflowStaticData('node') as IDataObject;
+						const now = Date.now();
+						const waitingMessages = (state.waitingMessages ?? {}) as Record<
+							string,
+							WaitingMessageBinding
+						>;
+						for (const [id, binding] of Object.entries(waitingMessages)) {
+							if (now - binding.createdAt >= WAITING_MESSAGE_TTL_MS) delete waitingMessages[id];
+						}
+						waitingMessages[this.getExecutionId()] = {
+							messageId: String(accepted.messageId ?? ''),
+							createdAt: now,
+						};
+						state.waitingMessages = waitingMessages;
 						const minutes = this.getNodeParameter('waitMinutes', i, 10) as number;
 						await this.putExecutionToWait(new Date(Date.now() + minutes * 60_000));
 						// Until the reply arrives the output is the accepted message; the webhook replaces it.

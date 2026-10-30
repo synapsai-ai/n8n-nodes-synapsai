@@ -338,7 +338,7 @@ test('resume webhook: a signed message.replied resumes with the flattened reply'
 	const ctx = webhookContext({
 		body,
 		rawBody: raw,
-		staticData: { waitingMessageId: 'msg_w' },
+		staticData: { waitingMessages: { 'exec-42': { messageId: 'msg_w', createdAt: Date.now() } } },
 		headers: {
 			'x-synapsai-timestamp': String(NOW),
 			'x-synapsai-webhook-id': 'evt_00000000000000000000000000000001',
@@ -366,7 +366,7 @@ test('resume webhook rejects a validly signed reply for a different request mess
 	const ctx = webhookContext({
 		body,
 		rawBody: raw,
-		staticData: { waitingMessageId: 'msg_expected' },
+		staticData: { waitingMessages: { 'exec-42': { messageId: 'msg_expected', createdAt: Date.now() } } },
 		headers: {
 			'x-synapsai-timestamp': String(NOW),
 			'x-synapsai-webhook-id': id,
@@ -376,6 +376,48 @@ test('resume webhook rejects a validly signed reply for a different request mess
 	const result = await new SynapsAi().webhook.call(ctx);
 	assert.equal(ctx.res.statusCode, 401);
 	assert.equal(result.workflowData, undefined);
+});
+
+test('resume bindings remain isolated across overlapping waits on the same node', async () => {
+	const staticData = {};
+	const wait = async (executionId, messageId) => {
+		const ctx = executeContext({
+			staticData,
+			params: {
+				resource: 'agent', operation: 'ask', agentKey: 'k', externalUserId: 'u', text: 'hi',
+				waitForReply: true, options: {},
+			},
+			responder: () => ({ messageId, status: 'QUEUED' }),
+		});
+		ctx.getExecutionId = () => executionId;
+		await new SynapsAi().execute.call(ctx);
+	};
+	await wait('exec-a', 'msg-a');
+	await wait('exec-b', 'msg-b');
+
+	const reply = async (executionId, messageId) => {
+		const body = { type: 'message.replied', message: { id: messageId, text: 'ok' } };
+		const raw = Buffer.from(JSON.stringify(body));
+		const id = `evt-${executionId}`;
+		const ctx = webhookContext({
+			body,
+			rawBody: raw,
+			staticData,
+			executionId,
+			headers: {
+				'x-synapsai-timestamp': String(NOW),
+				'x-synapsai-webhook-id': id,
+				'x-synapsai-signature': sign(CREDENTIALS.signingSecret, NOW, id, raw),
+			},
+		});
+		return { ctx, result: await new SynapsAi().webhook.call(ctx) };
+	};
+
+	const a = await reply('exec-a', 'msg-a');
+	const b = await reply('exec-b', 'msg-b');
+	assert.equal(a.result.workflowData[0][0].json.messageId, 'msg-a');
+	assert.equal(b.result.workflowData[0][0].json.messageId, 'msg-b');
+	assert.deepEqual(staticData.waitingMessages, {});
 });
 
 test('resume webhook: a forged signature answers 401 and does not resume', async () => {
