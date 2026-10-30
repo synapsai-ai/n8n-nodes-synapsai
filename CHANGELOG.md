@@ -10,7 +10,7 @@
 - Security: F7 — pin publish actions and npm, use a protected environment, skip install scripts and add Dependabot.
 - Security: F8 — verified no third-party npm scope references in package or docs.
 - Security: F9 — exclude source maps and TypeScript build metadata from the tarball.
-- Release: the first version is manually published with 2FA after merge; configure Trusted Publishing and token restrictions only after the package exists. Later versions (0.2.2+) use the provenance tag workflow.
+- Release bootstrap: merge first, then from a clean checkout of the merge commit run `npm ci && npm run verify && RELEASE_MODE=true npm publish --access public` with 2FA; this creates the package and claims the name. After it exists, configure Trusted Publisher (owner `synapsai-ai`, repo `n8n-nodes-synapsai`, workflow `publish.yml`, environment `npm-publish`), require 2FA and disallow tokens, retain the GitHub environment reviewer and `*.*.*` tag ruleset; later versions (0.2.2+) publish with provenance through the tag workflow.
 - Bug fix: preserve `itemIndex` when rethrowing `NodeApiError`.
 
 ## 0.2.0
