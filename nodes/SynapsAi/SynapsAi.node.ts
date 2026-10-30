@@ -8,8 +8,8 @@ import type {
 	INodeTypeDescription,
 	IWebhookFunctions,
 	IWebhookResponseData,
-	JsonObject,
 } from 'n8n-workflow';
+import { createHash, createHmac } from 'node:crypto';
 import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
 import { headerValue, rawBodyOf, verifySynapsaiSignature } from '../shared/signature';
@@ -326,7 +326,7 @@ export const properties: INodeProperties[] = [
 				type: 'string',
 				default: '',
 				description:
-					'Retrying with the same key and body within 24 h returns the same message instead of a second turn. Left empty, the node uses one per execution and item, so its own retries never send twice.',
+					'Retrying with the same key and body within 24 h returns the same message instead of a second turn. For a recurring send with byte-identical input, provide an explicit Idempotency Key expression because campaign keys do not expire.',
 			},
 			{
 				displayName: 'Metadata',
@@ -601,7 +601,7 @@ export const properties: INodeProperties[] = [
 				type: 'string',
 				default: '',
 				description:
-					'Retrying with the same key and body returns the same campaign and never charges twice. Left empty, the node uses one per execution and item.',
+					'Retrying with the same key and body returns the same campaign and never charges twice. For a recurring send with byte-identical input, provide an explicit Idempotency Key expression because campaign keys do not expire.',
 			},
 			{
 				displayName: 'Merge Field Fallbacks',
@@ -749,6 +749,13 @@ export class SynapsAi implements INodeType {
 			response.status(204).end();
 			return { noWebhookResponse: true };
 		}
+		const state = this.getWorkflowStaticData('node') as IDataObject;
+		const message = body.message as IDataObject | undefined;
+		const nonce = (message?.metadata as IDataObject | undefined)?._n8n;
+		if (!state.waitingMessageId || nonce !== state.waitingNonce) {
+			response.status(401).json({ code: 'REPLY_MISMATCH' });
+			return { noWebhookResponse: true };
+		}
 		return { webhookResponse: '', workflowData: [[{ json: replyItem(body) }]] };
 	}
 
@@ -780,6 +787,7 @@ export class SynapsAi implements INodeType {
 							);
 						}
 						const accepted = await ask.call(this, i, this.getSignedResumeUrl());
+						(this.getWorkflowStaticData('node') as IDataObject).waitingMessageId = accepted.messageId;
 						const minutes = this.getNodeParameter('waitMinutes', i, 10) as number;
 						await this.putExecutionToWait(new Date(Date.now() + minutes * 60_000));
 						// Until the reply arrives the output is the accepted message; the webhook replaces it.
@@ -888,12 +896,9 @@ export class SynapsAi implements INodeType {
 					continue;
 				}
 				if (error instanceof NodeApiError) {
-					// Keep the SynapsAI code and HTTP status; only the item index is added.
-					throw new NodeApiError(this.getNode(), error as unknown as JsonObject, {
-						itemIndex: i,
-						message: error.message,
-						httpCode: error.httpCode ?? undefined,
-					});
+					// n8n-workflow 2.45.1 returns the same NodeApiError from its constructor.
+					error.context.itemIndex = i;
+					throw error;
 				}
 				throw new NodeOperationError(this.getNode(), error as Error, { itemIndex: i });
 			}
@@ -911,6 +916,8 @@ async function ask(
 ): Promise<IDataObject> {
 	const agentKey = segment(this.getNodeParameter('agentKey', i) as string, 'Agent');
 	const options = this.getNodeParameter('options', i, {}) as IDataObject;
+	const credentials = await this.getCredentials(CREDENTIAL_NAME);
+	const state = this.getWorkflowStaticData('node') as IDataObject;
 	const contact = compact({ name: options.name, phone: options.phone, email: options.email });
 	const body = compact({
 		externalUserId: this.getNodeParameter('externalUserId', i) as string,
@@ -918,10 +925,16 @@ async function ask(
 		contactId: options.contactId,
 		contact: Object.keys(contact).length > 0 ? contact : undefined,
 		metadata: parseMetadata.call(this, options.metadata, i),
-		// A stable key per execution and item: a 503 retry (or a re-delivered execution) never sends a second turn.
-		idempotencyKey: options.idempotencyKey || `n8n-${this.getExecutionId()}-${i}`,
 		callbackUrl: resumeUrl ?? options.callbackUrl,
 	});
+	if (resumeUrl) {
+		const nonce = createHmac('sha256', String(credentials.signingSecret))
+			.update(String(this.getExecutionId()))
+			.digest('hex');
+		body.metadata = { ...((body.metadata as IDataObject | undefined) ?? {}), _n8n: nonce };
+		state.waitingNonce = nonce;
+	}
+	body.idempotencyKey = options.idempotencyKey || defaultIdempotencyKey.call(this, i, agentKey, body);
 	return asObject.call(
 		this,
 		await synapsAiRequest.call(this, 'POST', `/v1/agents/${agentKey}/messages`, body),
@@ -958,8 +971,7 @@ async function sendCampaign(this: IExecuteFunctions, i: number): Promise<IDataOb
 			? new Date(options.scheduledAt as string).toISOString()
 			: undefined,
 	});
-	// A stable key per execution and item: a 503 retry (or a re-delivered execution) never sends a second campaign.
-	const key = String(options.idempotencyKey || `n8n-${this.getExecutionId()}-${i}`);
+	const key = String(options.idempotencyKey || defaultIdempotencyKey.call(this, i, agentKey, body));
 	return asObject.call(
 		this,
 		await synapsAiRequest.call(this, 'POST', `/v1/agents/${agentKey}/campaigns`, body, undefined, {
@@ -967,6 +979,36 @@ async function sendCampaign(this: IExecuteFunctions, i: number): Promise<IDataOb
 		}),
 		'POST /v1/agents/{agentKey}/campaigns',
 	);
+}
+
+function defaultIdempotencyKey(
+	this: IExecuteFunctions,
+	i: number,
+	agentKey: string,
+	body: IDataObject,
+): string {
+	const requestBody = { ...body };
+	delete requestBody.callbackUrl;
+	delete requestBody.idempotencyKey;
+	const canonical = canonicalJson({
+		workflowId: this.getWorkflow().id ?? 'unsaved',
+		nodeId: this.getNode().id,
+		agentKey,
+		body: requestBody,
+		input: this.getInputData()[i]?.json ?? {},
+	});
+	return `n8n-${createHash('sha256').update(canonical).digest('hex').slice(0, 40)}`;
+}
+
+function canonicalJson(value: unknown): string {
+	if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+	if (value && typeof value === 'object') {
+		return `{${Object.keys(value)
+			.sort()
+			.map((key) => `${JSON.stringify(key)}:${canonicalJson((value as IDataObject)[key])}`)
+			.join(',')}}`;
+	}
+	return JSON.stringify(value) ?? 'null';
 }
 
 /** Recipients as a list of contact ids or `{contactId, variables?}` objects, normalised to the latter. */

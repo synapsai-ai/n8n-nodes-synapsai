@@ -141,7 +141,7 @@ test('Ask (no wait): one POST to /v1/agents/{agentKey}/messages with the documen
 	assert.equal(ctx.state.waitTill, undefined);
 });
 
-test('Ask: without an idempotency key the node sends one per execution and item', async () => {
+test('Ask: default idempotency key survives a new execution id for identical input', async () => {
 	const ctx = executeContext({
 		params: {
 			resource: 'agent',
@@ -155,7 +155,26 @@ test('Ask: without an idempotency key the node sends one per execution and item'
 		responder: () => ({ messageId: 'msg_a', status: 'QUEUED' }),
 	});
 	await new SynapsAi().execute.call(ctx);
-	assert.equal(ctx.http.calls[0].options.body.idempotencyKey, 'n8n-exec-42-0');
+	const first = ctx.http.calls[0].options.body.idempotencyKey;
+	ctx.getExecutionId = () => 'manual-retry-exec-99';
+	const retry = executeContext({
+		params: { resource: 'agent', operation: 'ask', agentKey: 'k', externalUserId: 'u', text: 'hi', waitForReply: false, options: {} },
+	});
+	await new SynapsAi().execute.call(retry);
+	assert.equal(retry.http.calls[0].options.body.idempotencyKey, first);
+	assert.match(first, /^n8n-[a-f0-9]{40}$/);
+});
+
+test('default idempotency keys vary by workflow and campaign recipient list', async () => {
+	const first = executeContext({ params: campaignParams() });
+	await new SynapsAi().execute.call(first);
+	const second = executeContext({ params: campaignParams({ recipients: ['c3'] }) });
+	await new SynapsAi().execute.call(second);
+	assert.notEqual(first.http.calls[0].options.headers['Idempotency-Key'], second.http.calls[0].options.headers['Idempotency-Key']);
+	const otherWorkflow = executeContext({ params: campaignParams() });
+	otherWorkflow.getWorkflow = () => ({ id: 'wf-other' });
+	await new SynapsAi().execute.call(otherWorkflow);
+	assert.notEqual(first.http.calls[0].options.headers['Idempotency-Key'], otherWorkflow.http.calls[0].options.headers['Idempotency-Key']);
 });
 
 test('transport ignores a legacy credential Base URL and always sends to SynapsAI', async () => {
@@ -474,7 +493,7 @@ test('Campaign Send (template): Idempotency-Key header, template object, recipie
 	assert.equal(row.json.campaignId, 'cmp_1');
 	const { options } = ctx.http.calls[0];
 	assert.equal(options.url, 'https://connect.synapsai.app/v1/agents/velvet/campaigns');
-	assert.equal(options.headers['Idempotency-Key'], 'n8n-exec-42-0');
+	assert.match(options.headers['Idempotency-Key'], /^n8n-[a-f0-9]{40}$/);
 	assert.deepEqual(options.body, {
 		name: 'BF',
 		channel: 'WHATSAPP_TEMPLATE',

@@ -18,8 +18,9 @@ Create a **SynapsAI API** credential:
 | Field | Value |
 |---|---|
 | API Key | an `sk_live_…` key from the console (Account → API keys). Scopes: `messages:write` for Ask, `conversations:read`, `contacts:read`/`contacts:write`, `leads:read`, `hooks:write` for the trigger, `agents:read` for the agent picker. |
-| Base URL | `https://connect.synapsai.app` |
 | Agent Signing Secret | the agent’s signing secret: agent → **Extensions** → **Workflow API (n8n · Make)**. Needed only for **Wait for Reply**. |
+
+Do not give an AI Agent a key with `campaigns:write` or `contacts:write`.
 
 The credential test calls `GET /v1/me`. API access is part of the GROWTH, PRO and ENTERPRISE plans: below GROWTH
 the test fails with **PLAN_FEATURE_UNAVAILABLE**.
@@ -61,9 +62,15 @@ and add n8n’s **Wait** node set to *On Webhook Call* (POST) right after it.
 
 Errors show SynapsAI's `CODE: message` (e.g. `SCOPE_MISSING: …`, `AGENT_FORBIDDEN: …`). A **503** means SynapsAI did
 not complete the call. The node retries it twice (after 1 s and 3 s) for the idempotent calls only — reads, and Ask agent,
-which always sends an idempotency key (yours, or one per execution and item) so a retry never starts a second turn.
+which always sends an idempotency key so a retry never starts a second turn. For recurring campaign sends with
+byte-identical input, set an explicit **Idempotency Key** expression: campaign keys never expire server-side.
 A **429** on those same calls waits its `Retry-After` (up to a minute) and retries. Create or update contact and the
 trigger's subscribe/unsubscribe are never retried: the write may have been applied.
+
+### SynapsAI Tool (read-only)
+
+Use the separate **SynapsAI Tool (read-only)** node with an AI Agent. It exposes only read operations. The API key
+connected to an AI Agent must not have `campaigns:write` or `contacts:write` scopes.
 
 ## SynapsAI Trigger
 

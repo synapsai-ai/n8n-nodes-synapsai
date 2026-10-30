@@ -60,6 +60,7 @@ function executeContext({
 		getCredentials: async () => credentials,
 		getNode: fakeNode,
 		getExecutionId: () => 'exec-42',
+		getWorkflow: () => ({ id: 'wf-7' }),
 		continueOnFail: () => false,
 		getSignedResumeUrl: () => state.resumeUrl,
 		putExecutionToWait: async (date) => {
