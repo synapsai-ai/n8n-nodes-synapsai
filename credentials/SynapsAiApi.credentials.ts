@@ -28,14 +28,6 @@ export class SynapsAiApi implements ICredentialType {
 				'An API key minted in the SynapsAI console (Account → API keys). Ask agent needs the messages:write scope.',
 		},
 		{
-			displayName: 'Base URL',
-			name: 'baseUrl',
-			type: 'string',
-			required: true,
-			default: 'https://connect.synapsai.app',
-			description: 'Leave the default unless SynapsAI support gave you another host',
-		},
-		{
 			displayName: 'Agent Signing Secret',
 			name: 'signingSecret',
 			type: 'string',
@@ -58,7 +50,7 @@ export class SynapsAiApi implements ICredentialType {
 	// GET /v1/me answers 403 PLAN_FEATURE_UNAVAILABLE below GROWTH and 503 when SynapsAI is briefly unavailable.
 	test: ICredentialTestRequest = {
 		request: {
-			baseURL: '={{$credentials.baseUrl.replace(/\\/+$/, "")}}',
+			baseURL: 'https://connect.synapsai.app',
 			url: '/v1/me',
 			method: 'GET',
 		},

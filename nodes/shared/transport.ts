@@ -11,6 +11,7 @@ import type {
 import { NodeApiError, NodeOperationError, sleep } from 'n8n-workflow';
 
 export const CREDENTIAL_NAME = 'synapsAiApi';
+export const SYNAPSAI_BASE_URL = 'https://connect.synapsai.app';
 
 /**
  * SynapsAI answers 503 (`UPSTREAM_UNAVAILABLE`, `AUTH_UNAVAILABLE`, …) when it could not complete a call. Only an
@@ -93,10 +94,9 @@ export async function synapsAiRequest(
 	options: RequestOptions = {},
 ): Promise<IDataObject | IDataObject[]> {
 	const credentials = await this.getCredentials(CREDENTIAL_NAME);
-	const baseUrl = String(credentials.baseUrl || 'https://connect.synapsai.app').replace(/\/+$/, '');
 	const request: IHttpRequestOptions = {
 		method,
-		url: `${baseUrl}${path}`,
+		url: `${SYNAPSAI_BASE_URL}${path}`,
 		json: true,
 		headers: { Accept: 'application/json', ...options.headers },
 	};

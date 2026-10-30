@@ -101,8 +101,8 @@ test('credential: bearer header and the /v1/me test request', () => {
 	assert.match(byStatus[403], /^PLAN_FEATURE_UNAVAILABLE: .*GROWTH/);
 	assert.match(byStatus[401], /^INVALID_KEY/);
 	assert.match(byStatus[503], /temporarily unavailable/);
-	const baseUrl = credential.properties.find((p) => p.name === 'baseUrl');
-	assert.equal(baseUrl.default, 'https://connect.synapsai.app');
+	assert.equal(credential.properties.some((p) => p.name === 'baseUrl'), false);
+	assert.equal(credential.test.request.baseURL, 'https://connect.synapsai.app');
 });
 
 test('Ask (no wait): one POST to /v1/agents/{agentKey}/messages with the documented body', async () => {
@@ -156,6 +156,16 @@ test('Ask: without an idempotency key the node sends one per execution and item'
 	});
 	await new SynapsAi().execute.call(ctx);
 	assert.equal(ctx.http.calls[0].options.body.idempotencyKey, 'n8n-exec-42-0');
+});
+
+test('transport ignores a legacy credential Base URL and always sends to SynapsAI', async () => {
+	const ctx = executeContext({
+		params: { resource: 'conversation', operation: 'getAll' },
+		credentials: { ...CREDENTIALS, baseUrl: 'http://evil.example' },
+	});
+	await new SynapsAi().execute.call(ctx);
+	assert.match(ctx.http.calls[0].options.url, /^https:\/\/connect\.synapsai\.app\//);
+	assert.doesNotMatch(ctx.http.calls[0].options.url, /evil\.example/);
 });
 
 test('Ask (wait): the signed resume URL is the callbackUrl and the execution waits', async () => {
