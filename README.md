@@ -130,15 +130,7 @@ npm run dev          # n8n with this node loaded, at http://localhost:5678
 
 ## Release
 
-The `n8n-nodes-synapsai@0.0.1` placeholder reserves the npm name. After this PR merges, David releases 0.2.3 from
-the package merge commit by pushing the protected version tag:
-
-```bash
-git tag 0.2.3 && git push origin 0.2.3
-```
-
-The `npm-publish` environment requires David’s approval; approve the Publish job in Actions. The workflow publishes with
-provenance. Do not publish manually with an npm token.
+Releases are published from GitHub Actions with npm provenance when a maintainer pushes a protected version tag.
 
 ## License
 
