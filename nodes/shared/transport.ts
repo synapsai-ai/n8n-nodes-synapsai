@@ -67,7 +67,10 @@ export function retryAfterMs(error: unknown): number | undefined {
 export function segment(value: string, label: string): string {
 	const trimmed = String(value ?? '').trim();
 	if (!trimmed) throw new Error(`${label} is required`);
-	if (/^\.+$/.test(trimmed) || /[\x00-\x1f\x7f]/.test(trimmed)) {
+	if (/^\.+$/.test(trimmed) || [...trimmed].some((character) => {
+		const code = character.charCodeAt(0);
+		return code < 32 || code === 127;
+	})) {
 		throw new Error(`${label} contains an invalid path segment`);
 	}
 	return encodeURIComponent(trimmed);
@@ -96,7 +99,6 @@ export async function synapsAiRequest(
 	qs?: IDataObject,
 	options: RequestOptions = {},
 ): Promise<IDataObject | IDataObject[]> {
-	const credentials = await this.getCredentials(CREDENTIAL_NAME);
 	const request: IHttpRequestOptions = {
 		method,
 		url: `${SYNAPSAI_BASE_URL}${path}`,
