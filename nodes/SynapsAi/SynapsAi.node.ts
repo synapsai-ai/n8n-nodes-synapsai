@@ -10,7 +10,7 @@ import type {
 	IWebhookResponseData,
 	JsonObject,
 } from 'n8n-workflow';
-import { createHash, createHmac } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
 import { headerValue, rawBodyOf, verifySynapsaiSignature } from '../shared/signature';
@@ -753,8 +753,7 @@ export class SynapsAi implements INodeType {
 		}
 		const state = this.getWorkflowStaticData('node') as IDataObject;
 		const message = body.message as IDataObject | undefined;
-		const nonce = (message?.metadata as IDataObject | undefined)?._n8n;
-		if (!state.waitingMessageId || nonce !== state.waitingNonce) {
+		if (!state.waitingMessageId || message?.id !== state.waitingMessageId) {
 			response.status(401).json({ code: 'REPLY_MISMATCH' });
 			return { noWebhookResponse: true };
 		}
@@ -922,8 +921,6 @@ async function ask(
 ): Promise<IDataObject> {
 	const agentKey = segment(this.getNodeParameter('agentKey', i) as string, 'Agent');
 	const options = this.getNodeParameter('options', i, {}) as IDataObject;
-	const credentials = await this.getCredentials(CREDENTIAL_NAME);
-	const state = this.getWorkflowStaticData('node') as IDataObject;
 	const contact = compact({ name: options.name, phone: options.phone, email: options.email });
 	const body = compact({
 		externalUserId: this.getNodeParameter('externalUserId', i) as string,
@@ -933,13 +930,6 @@ async function ask(
 		metadata: parseMetadata.call(this, options.metadata, i),
 		callbackUrl: resumeUrl ?? options.callbackUrl,
 	});
-	if (resumeUrl) {
-		const nonce = createHmac('sha256', String(credentials.signingSecret))
-			.update(String(this.getExecutionId()))
-			.digest('hex');
-		body.metadata = { ...((body.metadata as IDataObject | undefined) ?? {}), _n8n: nonce };
-		state.waitingNonce = nonce;
-	}
 	body.idempotencyKey = options.idempotencyKey || defaultIdempotencyKey.call(this, i, agentKey, body);
 	return asObject.call(
 		this,

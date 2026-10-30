@@ -271,14 +271,14 @@ test('resume webhook: a signed message.replied resumes with the flattened reply'
 			id: 'msg_w',
 			text: 'Sim, temos!',
 			components: [{ type: 'buttons' }],
-			metadata: { dealId: 'D-9', _n8n: 'nonce-1' },
+			metadata: { dealId: 'D-9' },
 		},
 	};
 	const raw = Buffer.from(JSON.stringify(body));
 	const ctx = webhookContext({
 		body,
 		rawBody: raw,
-		staticData: { waitingMessageId: 'msg_request', waitingNonce: 'nonce-1' },
+		staticData: { waitingMessageId: 'msg_w' },
 		headers: {
 			'x-synapsai-timestamp': String(NOW),
 			'x-synapsai-webhook-id': 'evt_00000000000000000000000000000001',
@@ -296,17 +296,17 @@ test('resume webhook: a signed message.replied resumes with the flattened reply'
 	assert.equal(item.text, 'Sim, temos!');
 	assert.equal(item.messageId, 'msg_w');
 	assert.equal(item.conversationId, 'c1');
-	assert.deepEqual(item.metadata, { dealId: 'D-9', _n8n: 'nonce-1' });
+	assert.deepEqual(item.metadata, { dealId: 'D-9' });
 });
 
-test('resume webhook rejects a validly signed reply with a different wait nonce', async () => {
-	const body = { type: 'message.replied', message: { id: 'reply', metadata: { _n8n: 'wrong' } } };
+test('resume webhook rejects a validly signed reply for a different request message', async () => {
+	const body = { type: 'message.replied', message: { id: 'msg_other' } };
 	const raw = Buffer.from(JSON.stringify(body));
 	const id = 'evt_reply_mismatch';
 	const ctx = webhookContext({
 		body,
 		rawBody: raw,
-		staticData: { waitingMessageId: 'msg_expected', waitingNonce: 'expected' },
+		staticData: { waitingMessageId: 'msg_expected' },
 		headers: {
 			'x-synapsai-timestamp': String(NOW),
 			'x-synapsai-webhook-id': id,
