@@ -8,7 +8,7 @@
 - Security: F5 — reject replayed trigger deliveries and bind Ask replies to their waiting execution.
 - Security: F6 — reject dot-segment and ASCII-control path identifiers.
 - Security: F7 — pin publish actions and npm, use a protected environment, skip install scripts and add Dependabot.
-- Security: F8 — verify no `@synapsai/` scope references in package or docs.
+- Security: F8 — verified no third-party npm scope references in package or docs.
 - Security: F9 — exclude source maps and TypeScript build metadata from the tarball.
 - Bug fix: preserve `itemIndex` when rethrowing `NodeApiError`.
 
