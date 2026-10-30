@@ -1,8 +1,15 @@
-import type { INodeProperties, INodePropertyOptions, INodeType, INodeTypeDescription } from 'n8n-workflow';
+import {
+	NodeOperationError,
+	type IExecuteFunctions,
+	type INodeProperties,
+	type INodePropertyOptions,
+	type INodeType,
+	type INodeTypeDescription,
+} from 'n8n-workflow';
 import { SynapsAi, properties as mainProperties } from '../SynapsAi/SynapsAi.node';
 import { CREDENTIAL_NAME } from '../shared/transport';
 
-const allowed: Record<string, string[]> = {
+export const allowed: Record<string, string[]> = {
 	conversation: ['get', 'getAll'],
 	contact: ['getAll'],
 	lead: ['getAll'],
@@ -61,4 +68,20 @@ export class SynapsAiTool extends SynapsAi implements INodeType {
 		credentials: [{ name: CREDENTIAL_NAME, required: true }],
 		properties: toolProperties(),
 	};
+
+	async execute(this: IExecuteFunctions) {
+		const items = this.getInputData();
+		for (let i = 0; i < items.length; i++) {
+			const resource = this.getNodeParameter('resource', i) as string;
+			const operation = this.getNodeParameter('operation', i) as string;
+			if (!allowed[resource]?.includes(operation)) {
+				throw new NodeOperationError(
+					this.getNode(),
+					`SynapsAI Tool is read-only: ${resource}:${operation} is not allowed`,
+					{ itemIndex: i },
+				);
+			}
+		}
+		return SynapsAi.prototype.execute.call(this);
+	}
 }

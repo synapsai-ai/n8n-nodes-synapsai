@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-synapsai",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "n8n nodes for SynapsAI: ask a SynapsAI agent inside a workflow and trigger on its replies, closed conversations and captured leads.",
   "license": "MIT",
   "homepage": "https://docs.synapsai.app/workflows/n8n-cloud/",
