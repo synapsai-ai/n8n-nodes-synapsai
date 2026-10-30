@@ -43,6 +43,7 @@
     ],
     "nodes": [
       "dist/nodes/SynapsAi/SynapsAi.node.js",
+      "dist/nodes/SynapsAiTool/SynapsAiTool.node.js",
       "dist/nodes/SynapsAiTrigger/SynapsAiTrigger.node.js"
     ]
   },

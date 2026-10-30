@@ -4,6 +4,7 @@ const { test } = require('node:test');
 
 const { verifySynapsaiSignature } = require('../dist/nodes/shared/signature');
 const { SynapsAi, replyItem } = require('../dist/nodes/SynapsAi/SynapsAi.node');
+const { SynapsAiTool } = require('../dist/nodes/SynapsAiTool/SynapsAiTool.node');
 const {
 	SynapsAiTrigger,
 	TRIGGER_EVENTS,
@@ -28,7 +29,17 @@ test('package: zero runtime dependencies, community keyword, both nodes and the 
 	assert.ok(pkg.keywords.includes('n8n-community-node-package'));
 	assert.equal(pkg.license, 'MIT');
 	assert.deepEqual(pkg.n8n.credentials, ['dist/credentials/SynapsAiApi.credentials.js']);
-	assert.equal(pkg.n8n.nodes.length, 2);
+	assert.equal(pkg.n8n.nodes.length, 3);
+});
+
+test('read-only AI Agent tool exposes only the approved read operations', () => {
+	const description = new SynapsAiTool().description;
+	assert.equal(description.usableAsTool, true);
+	const operations = description.properties
+		.filter((property) => property.name === 'operation')
+		.flatMap((property) => property.options.map((option) => option.value));
+	assert.deepEqual(operations.sort(), ['get', 'get', 'getAll', 'getAll', 'getAll', 'getAll', 'getAll', 'getDeliveries'].sort());
+	assert.ok(!operations.some((operation) => ['ask', 'send', 'cancel', 'upsert'].includes(operation)));
 });
 
 test('signature: the SynapsAI docs test vector', () => {

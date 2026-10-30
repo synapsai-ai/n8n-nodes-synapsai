@@ -72,7 +72,7 @@ const agentKeyField = (resource: string, operation: string): INodeProperties => 
 	displayOptions: show(resource, operation),
 });
 
-const properties: INodeProperties[] = [
+export const properties: INodeProperties[] = [
 	{
 		displayName: 'Resource',
 		name: 'resource',
@@ -680,7 +680,7 @@ export class SynapsAi implements INodeType {
 		description:
 			'Ask a SynapsAI agent, send it WhatsApp template campaigns, and read its conversations, contacts and leads',
 		defaults: { name: 'SynapsAI' },
-		usableAsTool: true,
+		usableAsTool: false,
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
 		credentials: [{ name: CREDENTIAL_NAME, required: true }],
