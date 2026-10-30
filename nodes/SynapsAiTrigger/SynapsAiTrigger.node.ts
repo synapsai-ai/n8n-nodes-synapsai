@@ -69,6 +69,26 @@ export const TRIGGER_EVENTS = [
 interface HookState extends IDataObject {
 	hookId?: string;
 	signingSecret?: string;
+	seenWebhookIds?: Record<string, number>;
+}
+
+export function rememberWebhookId(state: HookState, webhookId: string, nowMs = Date.now()): boolean {
+	const seen = state.seenWebhookIds ?? {};
+	for (const [id, timestamp] of Object.entries(seen)) {
+		if (nowMs - timestamp >= 10 * 60_000) delete seen[id];
+	}
+	if (seen[webhookId] !== undefined) {
+		state.seenWebhookIds = seen;
+		return false;
+	}
+	seen[webhookId] = nowMs;
+	const ids = Object.keys(seen);
+	if (ids.length > 500) {
+		ids.sort((a, b) => seen[a] - seen[b]);
+		for (const id of ids.slice(0, ids.length - 500)) delete seen[id];
+	}
+	state.seenWebhookIds = seen;
+	return true;
 }
 
 export class SynapsAiTrigger implements INodeType {
@@ -229,6 +249,11 @@ export class SynapsAiTrigger implements INodeType {
 			});
 		if (!valid) {
 			response.status(401).json({ code: 'INVALID_SIGNATURE' });
+			return { noWebhookResponse: true };
+		}
+		const webhookId = headerValue(headers, 'x-synapsai-webhook-id');
+		if (!webhookId || !rememberWebhookId(state, webhookId)) {
+			response.status(200).end();
 			return { noWebhookResponse: true };
 		}
 		const body = this.getBodyData();

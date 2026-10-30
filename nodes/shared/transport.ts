@@ -67,6 +67,9 @@ export function retryAfterMs(error: unknown): number | undefined {
 export function segment(value: string, label: string): string {
 	const trimmed = String(value ?? '').trim();
 	if (!trimmed) throw new Error(`${label} is required`);
+	if (/^\.+$/.test(trimmed) || /[\x00-\x1f\x7f]/.test(trimmed)) {
+		throw new Error(`${label} contains an invalid path segment`);
+	}
 	return encodeURIComponent(trimmed);
 }
 

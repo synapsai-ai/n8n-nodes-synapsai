@@ -8,6 +8,7 @@ const { SynapsAiTool } = require('../dist/nodes/SynapsAiTool/SynapsAiTool.node')
 const {
 	SynapsAiTrigger,
 	TRIGGER_EVENTS,
+	rememberWebhookId,
 } = require('../dist/nodes/SynapsAiTrigger/SynapsAiTrigger.node');
 const { SynapsAiApi } = require('../dist/credentials/SynapsAiApi.credentials');
 const pkg = require('../package.json');
@@ -61,6 +62,15 @@ test('signature: the SynapsAI docs test vector', () => {
 	);
 });
 
+test('path segments reject dot traversal and ASCII control characters before requests', async () => {
+	for (const value of ['.', '..', 'x\u0000y', 'x\u007fy']) {
+		assert.throws(() => transport.segment(value, 'ID'), /invalid path segment/);
+	}
+	const ctx = executeContext({ params: { resource: 'conversation', operation: 'get', conversationId: '..' } });
+	await assert.rejects(new SynapsAi().execute.call(ctx), /invalid path segment/);
+	assert.equal(ctx.http.calls.length, 0);
+});
+
 test('signature: refuses a changed byte, another secret, a stale or future timestamp and any missing part', () => {
 	const body = Buffer.from('{"type":"message.replied"}');
 	const base = {
@@ -85,6 +95,15 @@ test('signature: refuses a changed byte, another secret, a stale or future times
 	assert.equal(verifySynapsaiSignature({ ...base, signature: good, webhookId: undefined }), false);
 	assert.equal(verifySynapsaiSignature({ ...base, signature: good, timestamp: '1e3' }), false);
 	assert.equal(verifySynapsaiSignature({ ...base, signature: 'sha256=00' }), false);
+});
+
+test('trigger replay cache is bounded to 500 ids and expires entries after ten minutes', () => {
+	const state = {};
+	assert.equal(rememberWebhookId(state, 'same', 0), true);
+	assert.equal(rememberWebhookId(state, 'same', 1), false);
+	for (let i = 0; i < 501; i++) rememberWebhookId(state, `id-${i}`, 2);
+	assert.ok(Object.keys(state.seenWebhookIds).length <= 500);
+	assert.equal(rememberWebhookId(state, 'same', 10 * 60_000), true);
 });
 
 test('credential: bearer header and the /v1/me test request', () => {
@@ -250,13 +269,14 @@ test('resume webhook: a signed message.replied resumes with the flattened reply'
 			id: 'msg_w',
 			text: 'Sim, temos!',
 			components: [{ type: 'buttons' }],
-			metadata: { dealId: 'D-9' },
+			metadata: { dealId: 'D-9', _n8n: 'nonce-1' },
 		},
 	};
 	const raw = Buffer.from(JSON.stringify(body));
 	const ctx = webhookContext({
 		body,
 		rawBody: raw,
+		staticData: { waitingMessageId: 'msg_request', waitingNonce: 'nonce-1' },
 		headers: {
 			'x-synapsai-timestamp': String(NOW),
 			'x-synapsai-webhook-id': 'evt_00000000000000000000000000000001',
@@ -275,6 +295,25 @@ test('resume webhook: a signed message.replied resumes with the flattened reply'
 	assert.equal(item.messageId, 'msg_w');
 	assert.equal(item.conversationId, 'c1');
 	assert.deepEqual(item.metadata, { dealId: 'D-9' });
+});
+
+test('resume webhook rejects a validly signed reply with a different wait nonce', async () => {
+	const body = { type: 'message.replied', message: { id: 'reply', metadata: { _n8n: 'wrong' } } };
+	const raw = Buffer.from(JSON.stringify(body));
+	const id = 'evt_reply_mismatch';
+	const ctx = webhookContext({
+		body,
+		rawBody: raw,
+		staticData: { waitingMessageId: 'msg_expected', waitingNonce: 'expected' },
+		headers: {
+			'x-synapsai-timestamp': String(NOW),
+			'x-synapsai-webhook-id': id,
+			'x-synapsai-signature': sign(CREDENTIALS.signingSecret, NOW, id, raw),
+		},
+	});
+	const result = await new SynapsAi().webhook.call(ctx);
+	assert.equal(ctx.res.statusCode, 401);
+	assert.equal(result.workflowData, undefined);
 });
 
 test('resume webhook: a forged signature answers 401 and does not resume', async () => {
@@ -727,6 +766,10 @@ test('trigger webhook: verified with the subscription secret; a ping is acknowle
 		webhookContext({ body, rawBody: raw, headers, staticData }),
 	);
 	assert.deepEqual(run.workflowData[0][0].json, body);
+	const duplicate = webhookContext({ body, rawBody: raw, headers, staticData });
+	const duplicateResult = await new SynapsAiTrigger().webhook.call(duplicate);
+	assert.equal(duplicate.res.statusCode, 200);
+	assert.equal(duplicateResult.workflowData, undefined);
 
 	const forged = webhookContext({
 		body,
