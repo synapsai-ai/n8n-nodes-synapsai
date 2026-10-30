@@ -62,8 +62,9 @@ and add n8n’s **Wait** node set to *On Webhook Call* (POST) right after it.
 
 Errors show SynapsAI's `CODE: message` (e.g. `SCOPE_MISSING: …`, `AGENT_FORBIDDEN: …`). A **503** means SynapsAI did
 not complete the call. The node retries it twice (after 1 s and 3 s) for the idempotent calls only — reads, and Ask agent,
-which always sends an idempotency key so a retry never starts a second turn. For recurring campaign sends with
-byte-identical input, set an explicit **Idempotency Key** expression: campaign keys never expire server-side.
+which always sends an idempotency key so a retry never starts a second turn. The default key changes at UTC midnight.
+For multiple identical campaign sends in the same UTC day, set an explicit **Idempotency Key** expression that
+changes for each intended send: campaign keys never expire server-side.
 A **429** on those same calls waits its `Retry-After` (up to a minute) and retries. Create or update contact and the
 trigger's subscribe/unsubscribe are never retried: the write may have been applied.
 

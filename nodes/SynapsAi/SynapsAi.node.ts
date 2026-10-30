@@ -327,7 +327,7 @@ export const properties: INodeProperties[] = [
 				type: 'string',
 				default: '',
 				description:
-					'Retrying with the same key and body within 24 h returns the same message instead of a second turn. For a recurring send with byte-identical input, provide an explicit Idempotency Key expression because campaign keys do not expire.',
+					'Retrying with the same key and body within 24 h returns the same message instead of a second turn. The default key changes at UTC midnight; provide an explicit key for multiple identical sends in the same UTC day.',
 			},
 			{
 				displayName: 'Metadata',
@@ -602,7 +602,7 @@ export const properties: INodeProperties[] = [
 				type: 'string',
 				default: '',
 				description:
-					'Retrying with the same key and body returns the same campaign and never charges twice. For a recurring send with byte-identical input, provide an explicit Idempotency Key expression because campaign keys do not expire.',
+					'Retrying with the same key and body returns the same campaign and never charges twice. The default key changes at UTC midnight; provide an explicit key for multiple identical sends in the same UTC day. Campaign keys do not expire server-side.',
 			},
 			{
 				displayName: 'Merge Field Fallbacks',

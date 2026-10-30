@@ -5,7 +5,7 @@
 # workflow, from THIS repository and commit.
 #
 # First release bootstrap (founder, after the PR merges): from a clean checkout of the merge commit,
-#   run `npm ci && npm run verify && RELEASE_MODE=true npm publish --access public` with npm 2FA.
+#   run `npm ci && npm run verify && npm publish --access public` with npm 2FA.
 #   npm requires the package to exist before configuring Trusted Publishing; this first publish claims the name.
 # Then configure npm Trusted Publisher (owner synapsai-ai, repo n8n-nodes-synapsai, workflow publish.yml,
 #   environment npm-publish) and package publishing access to require 2FA and disallow tokens.
@@ -55,5 +55,3 @@ jobs:
 
       - name: Publish with provenance
         run: npm publish --provenance --access public
-        env:
-          RELEASE_MODE: 'true'
