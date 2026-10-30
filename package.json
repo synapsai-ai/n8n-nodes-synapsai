@@ -1,0 +1,59 @@
+{
+  "name": "n8n-nodes-synapsai",
+  "version": "0.2.0",
+  "description": "n8n nodes for SynapsAI: ask a SynapsAI agent inside a workflow and trigger on its replies, closed conversations and captured leads.",
+  "license": "MIT",
+  "homepage": "https://docs.synapsai.app/workflows/n8n-cloud/",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "synapsai",
+    "ai-agent",
+    "whatsapp",
+    "customer-service"
+  ],
+  "author": {
+    "name": "SynapsAI",
+    "email": "support@synapsai.app"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/synapsai-ai/n8n-nodes-synapsai.git"
+  },
+  "scripts": {
+    "build": "n8n-node build",
+    "build:watch": "tsc --watch",
+    "dev": "n8n-node dev",
+    "lint": "n8n-node lint",
+    "lint:fix": "n8n-node lint --fix",
+    "release": "n8n-node release",
+    "prepublishOnly": "n8n-node prerelease",
+    "test": "n8n-node build && node --test test/*.test.js",
+    "check:deps": "node scripts/check-zero-deps.mjs",
+    "verify": "npm run check:deps && npm run lint && npm test"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "strict": true,
+    "credentials": [
+      "dist/credentials/SynapsAiApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/SynapsAi/SynapsAi.node.js",
+      "dist/nodes/SynapsAiTrigger/SynapsAiTrigger.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@n8n/node-cli": "0.54.3",
+    "eslint": "9.32.0",
+    "prettier": "3.6.2",
+    "release-it": "^21.1.0",
+    "typescript": "5.9.2"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}

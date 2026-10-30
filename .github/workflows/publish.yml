@@ -1,0 +1,56 @@
+# Publishes n8n-nodes-synapsai to npm with a provenance statement on every version tag (0.1.0, 1.2.3, ...).
+#
+# Since 2026-05-01 n8n requires community nodes to be published from GitHub Actions with npm provenance
+# (a prerequisite of the n8n Creator Portal verification). Provenance proves the tarball was built by THIS
+# workflow, from THIS repository and commit.
+#
+# One-time setup (founder): npmjs.com → package → Settings → Trusted Publishers → GitHub Actions,
+#   owner synapsai-ai, repository n8n-nodes-synapsai, workflow publish.yml. No NPM_TOKEN secret is needed
+#   with trusted publishing; an NPM_TOKEN (granular, publish on this package) is the fallback.
+#
+# Release: bump "version" in package.json on main, then `git tag <version> && git push origin <version>`.
+
+name: Publish
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC token for the npm provenance attestation
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      # npm >= 11.5 is needed for trusted publishing (OIDC).
+      - run: npm install -g npm@latest
+
+      - run: npm ci
+
+      - name: Tag matches package.json version
+        run: test "$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+
+      - name: Zero runtime dependencies
+        run: npm run check:deps
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build and test
+        run: npm test
+
+      - name: Publish with provenance
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
