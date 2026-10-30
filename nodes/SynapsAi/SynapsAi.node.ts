@@ -990,6 +990,7 @@ function defaultIdempotencyKey(
 		workflowId: this.getWorkflow().id ?? 'unsaved',
 		nodeId: this.getNode().id,
 		agentKey,
+		utcDay: new Date().toISOString().slice(0, 10),
 		body: requestBody,
 		input: this.getInputData()[i]?.json ?? {},
 	});

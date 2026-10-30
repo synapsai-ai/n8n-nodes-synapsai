@@ -186,6 +186,65 @@ test('Ask: default idempotency key survives a new execution id for identical inp
 	assert.match(first, /^n8n-[a-f0-9]{40}$/);
 });
 
+test('campaign default idempotency is stable within the UTC day and rotates the next day', async (t) => {
+	t.mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 9, 29, 23, 59, 0) });
+	t.after(() => t.mock.timers.reset());
+	const send = async (executionId) => {
+		const ctx = executeContext({ params: campaignParams() });
+		ctx.getExecutionId = () => executionId;
+		await new SynapsAi().execute.call(ctx);
+		return ctx.http.calls[0].options.headers['Idempotency-Key'];
+	};
+
+	const first = await send('scheduled-run-1');
+	const retrySameDay = await send('manual-retry-2');
+	assert.equal(retrySameDay, first);
+
+	t.mock.timers.setTime(Date.UTC(2026, 9, 30, 0, 1, 0));
+	const nextDay = await send('scheduled-run-next-day');
+	assert.notEqual(nextDay, first);
+});
+
+test('explicit campaign idempotency key wins across UTC days', async (t) => {
+	t.mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 9, 29, 23, 59, 0) });
+	t.after(() => t.mock.timers.reset());
+	const send = async () => {
+		const ctx = executeContext({ params: campaignParams({}, { idempotencyKey: 'customer-key-1' }) });
+		await new SynapsAi().execute.call(ctx);
+		return ctx.http.calls[0].options.headers['Idempotency-Key'];
+	};
+	assert.equal(await send(), 'customer-key-1');
+	t.mock.timers.setTime(Date.UTC(2026, 9, 30, 0, 1, 0));
+	assert.equal(await send(), 'customer-key-1');
+});
+
+test('campaign send output preserves an API replay indicator when present', async () => {
+	const ctx = executeContext({
+		params: campaignParams(),
+		responder: () => ({ campaignId: 'cmp_existing', status: 'SENDING', replayed: true }),
+	});
+	const [[row]] = await new SynapsAi().execute.call(ctx);
+	assert.equal(row.json.campaignId, 'cmp_existing');
+	assert.equal(row.json.replayed, true);
+});
+
+test('message default idempotency rotates by UTC day but remains stable for same-day retries', async (t) => {
+	t.mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 9, 29, 23, 59, 0) });
+	t.after(() => t.mock.timers.reset());
+	const ask = async (executionId) => {
+		const ctx = executeContext({
+			params: { resource: 'agent', operation: 'ask', agentKey: 'k', externalUserId: 'u', text: 'weekly report', waitForReply: false, options: {} },
+		});
+		ctx.getExecutionId = () => executionId;
+		await new SynapsAi().execute.call(ctx);
+		return ctx.http.calls[0].options.body.idempotencyKey;
+	};
+	const first = await ask('message-run-1');
+	assert.equal(await ask('same-day-retry'), first);
+	t.mock.timers.setTime(Date.UTC(2026, 9, 30, 0, 1, 0));
+	assert.notEqual(await ask('next-day-run'), first);
+});
+
 test('default idempotency keys vary by workflow and campaign recipient list', async () => {
 	const first = executeContext({ params: campaignParams() });
 	await new SynapsAi().execute.call(first);

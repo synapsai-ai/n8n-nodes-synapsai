@@ -10,6 +10,7 @@
 - Security: F7 — pin publish actions and npm, use a protected environment, skip install scripts and add Dependabot.
 - Security: F8 — verified no third-party npm scope references in package or docs.
 - Security: F9 — exclude source maps and TypeScript build metadata from the tarball.
+- Release: the first version is manually published with 2FA after merge; configure Trusted Publishing and token restrictions only after the package exists. Later versions (0.2.2+) use the provenance tag workflow.
 - Bug fix: preserve `itemIndex` when rethrowing `NodeApiError`.
 
 ## 0.2.0
