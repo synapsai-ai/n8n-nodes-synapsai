@@ -51,6 +51,11 @@ A request with a wrong signature is answered 401 and the execution keeps waiting
 execution continues with the accepted message (`{messageId, status: "QUEUED"}`); read the reply later with
 **Message → Get**.
 
+Wait for Reply adds a reserved `_n8n` field to request metadata so the signed reply is bound to this execution. Do not
+set `_n8n` yourself. Metadata allows at most 20 top-level keys and 2 KB of JSON; while waiting, the reserved field
+counts toward both limits, leaving room for at most 19 of your own keys. The binding is removed before computing the
+default idempotency key, so a retry with the same input keeps the same key.
+
 Requirements: your n8n must be reachable over **HTTPS on port 443** (SynapsAI never calls http, private IPs or other
 ports). On self-hosted n8n set `WEBHOOK_URL=https://your-host/`. One item per execution while waiting — use *Loop Over
 Items* for batches.

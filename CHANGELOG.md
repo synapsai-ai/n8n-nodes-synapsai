@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2
+
+- Security: Tool node enforces read-only at runtime.
+- Fix: Wait for Reply binding no longer depends on workflow static data.
+
+
 ## 0.2.1
 
 - Security: F2 — split AI Agent access into a read-only tool node.

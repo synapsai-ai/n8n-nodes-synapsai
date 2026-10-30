@@ -3,9 +3,10 @@ const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { NodeApiError } = require('n8n-workflow');
 
-const { verifySynapsaiSignature } = require('../dist/nodes/shared/signature');
+const { n8nWaitBinding, verifySynapsaiSignature } = require('../dist/nodes/shared/signature');
 const { SynapsAi, replyItem } = require('../dist/nodes/SynapsAi/SynapsAi.node');
 const { SynapsAiTool } = require('../dist/nodes/SynapsAiTool/SynapsAiTool.node');
+const { allowed: toolAllowed } = require('../dist/nodes/SynapsAiTool/SynapsAiTool.node');
 const {
 	SynapsAiTrigger,
 	TRIGGER_EVENTS,
@@ -43,6 +44,46 @@ test('read-only AI Agent tool exposes only the approved read operations', () => 
 		.flatMap((property) => property.options.map((option) => option.value));
 	assert.deepEqual(operations.sort(), ['get', 'get', 'get', 'getAll', 'getAll', 'getAll', 'getAll', 'getDeliveries'].sort());
 	assert.ok(!operations.some((operation) => ['ask', 'send', 'cancel', 'upsert'].includes(operation)));
+});
+
+test('read-only AI Agent tool rejects every write at runtime before making any request', async () => {
+	const writes = [
+		{ resource: 'campaign', operation: 'send' },
+		{ resource: 'campaign', operation: 'cancel' },
+		{ resource: 'contact', operation: 'upsert' },
+		{ resource: 'agent', operation: 'ask' },
+	];
+	for (const params of writes) {
+		const ctx = executeContext({ params, responder: () => assert.fail('write reached transport') });
+		await assert.rejects(
+			new SynapsAiTool().execute.call(ctx),
+			new RegExp(`SynapsAI Tool is read-only: ${params.resource}:${params.operation} is not allowed`),
+		);
+		assert.equal(ctx.http.calls.length, 0, `${params.resource}:${params.operation}`);
+	}
+});
+
+test('read-only AI Agent tool delegates every allowed operation as a GET', async () => {
+	const cases = [
+		{ resource: 'conversation', operation: 'get', conversationId: 'c1' },
+		{ resource: 'conversation', operation: 'getAll' },
+		{ resource: 'contact', operation: 'getAll' },
+		{ resource: 'lead', operation: 'getAll' },
+		{ resource: 'message', operation: 'get', messageId: 'm1' },
+		{ resource: 'template', operation: 'getAll', agentKey: 'agent-a' },
+		{ resource: 'campaign', operation: 'get', campaignId: 'campaign-a' },
+		{ resource: 'campaign', operation: 'getDeliveries', campaignId: 'campaign-a' },
+	];
+	for (const params of cases) {
+		const ctx = executeContext({
+			params,
+			responder: () => ({ items: [], page: 0, size: 50, total: 0, nextCursor: null }),
+		});
+		await new SynapsAiTool().execute.call(ctx);
+		assert.equal(ctx.http.calls.length, 1, `${params.resource}:${params.operation}`);
+		assert.equal(ctx.http.calls[0].options.method, 'GET', `${params.resource}:${params.operation}`);
+	}
+	assert.deepEqual(Object.keys(toolAllowed).sort(), ['campaign', 'contact', 'conversation', 'lead', 'message', 'template']);
 });
 
 test('signature: the SynapsAI docs test vector', () => {
@@ -268,7 +309,7 @@ test('transport ignores a legacy credential Base URL and always sends to SynapsA
 	assert.doesNotMatch(ctx.http.calls[0].options.url, /evil\.example/);
 });
 
-test('Ask (wait): the signed resume URL is the callbackUrl and the execution waits', async () => {
+test('Ask (wait): the resume token URL includes this node path and the execution waits', async () => {
 	const ctx = executeContext({
 		params: {
 			resource: 'agent',
@@ -284,7 +325,10 @@ test('Ask (wait): the signed resume URL is the callbackUrl and the execution wai
 	});
 	const before = Date.now();
 	await new SynapsAi().execute.call(ctx);
-	assert.equal(ctx.http.calls[0].options.body.callbackUrl, ctx.state.resumeUrl);
+	assert.equal(
+		ctx.http.calls[0].options.body.callbackUrl,
+		'https://n8n.example.com/webhook-waiting/42/node-1?signature=abc',
+	);
 	const waitMs = ctx.state.waitTill.getTime() - before;
 	assert.ok(waitMs >= 3 * 60_000 - 50 && waitMs <= 3 * 60_000 + 5_000, `waited ${waitMs}`);
 });
@@ -322,7 +366,29 @@ test('Ask: metadata that is not a JSON object is refused before any request', as
 	assert.equal(ctx.http.calls.length, 0);
 });
 
-test('resume webhook: a signed message.replied resumes with the flattened reply', async () => {
+test('Ask metadata reserves _n8n and counts the wait binding in key and byte limits', async () => {
+	const reserved = executeContext({
+		params: {
+			resource: 'agent', operation: 'ask', agentKey: 'agent-a', externalUserId: 'u', text: 'hi',
+			waitForReply: false, options: { metadata: JSON.stringify({ _n8n: 'caller-value' }) },
+		},
+	});
+	await assert.rejects(new SynapsAi().execute.call(reserved), /Metadata key "_n8n" is reserved/);
+	assert.equal(reserved.http.calls.length, 0);
+
+	const twentyKeys = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`k${i}`, i]));
+	const wait = executeContext({
+		params: {
+			resource: 'agent', operation: 'ask', agentKey: 'agent-a', externalUserId: 'u', text: 'hi',
+			waitForReply: true, options: { metadata: JSON.stringify(twentyKeys) },
+		},
+	});
+	await assert.rejects(new SynapsAi().execute.call(wait), /at most 20 keys/);
+	assert.equal(wait.http.calls.length, 0);
+});
+
+test('resume webhook: a signed message.replied with the execution binding resumes', async () => {
+	const binding = n8nWaitBinding(CREDENTIALS.signingSecret, 'exec-42');
 	const body = {
 		id: 'evt_00000000000000000000000000000001',
 		type: 'message.replied',
@@ -331,14 +397,14 @@ test('resume webhook: a signed message.replied resumes with the flattened reply'
 			id: 'msg_w',
 			text: 'Sim, temos!',
 			components: [{ type: 'buttons' }],
-			metadata: { dealId: 'D-9' },
+			metadata: { dealId: 'D-9', _n8n: binding },
 		},
 	};
 	const raw = Buffer.from(JSON.stringify(body));
 	const ctx = webhookContext({
 		body,
 		rawBody: raw,
-		staticData: { waitingMessages: { 'exec-42': { messageId: 'msg_w', createdAt: Date.now() } } },
+		staticData: {},
 		headers: {
 			'x-synapsai-timestamp': String(NOW),
 			'x-synapsai-webhook-id': 'evt_00000000000000000000000000000001',
@@ -356,53 +422,36 @@ test('resume webhook: a signed message.replied resumes with the flattened reply'
 	assert.equal(item.text, 'Sim, temos!');
 	assert.equal(item.messageId, 'msg_w');
 	assert.equal(item.conversationId, 'c1');
-	assert.deepEqual(item.metadata, { dealId: 'D-9' });
+	assert.deepEqual(item.metadata, { dealId: 'D-9', _n8n: binding });
 });
 
-test('resume webhook rejects a validly signed reply for a different request message', async () => {
-	const body = { type: 'message.replied', message: { id: 'msg_other' } };
-	const raw = Buffer.from(JSON.stringify(body));
-	const id = 'evt_reply_mismatch';
-	const ctx = webhookContext({
-		body,
-		rawBody: raw,
-		staticData: { waitingMessages: { 'exec-42': { messageId: 'msg_expected', createdAt: Date.now() } } },
-		headers: {
-			'x-synapsai-timestamp': String(NOW),
-			'x-synapsai-webhook-id': id,
-			'x-synapsai-signature': sign(CREDENTIALS.signingSecret, NOW, id, raw),
-		},
-	});
-	const result = await new SynapsAi().webhook.call(ctx);
-	assert.equal(ctx.res.statusCode, 401);
-	assert.equal(result.workflowData, undefined);
-});
-
-test('resume bindings remain isolated across overlapping waits on the same node', async () => {
-	const staticData = {};
-	const wait = async (executionId, messageId) => {
+test('resume webhook rejects a reply bound to another execution and works with fresh static data', async () => {
+	const sendWait = async (executionId) => {
 		const ctx = executeContext({
-			staticData,
 			params: {
-				resource: 'agent', operation: 'ask', agentKey: 'k', externalUserId: 'u', text: 'hi',
-				waitForReply: true, options: {},
+				resource: 'agent', operation: 'ask', agentKey: 'agent-a', externalUserId: 'u', text: 'hi',
+				waitForReply: true, options: { metadata: JSON.stringify({ dealId: 'D-9' }) },
 			},
-			responder: () => ({ messageId, status: 'QUEUED' }),
+			responder: () => ({ messageId: `msg-${executionId}`, status: 'QUEUED' }),
 		});
 		ctx.getExecutionId = () => executionId;
 		await new SynapsAi().execute.call(ctx);
+		return ctx.http.calls[0].options.body;
 	};
-	await wait('exec-a', 'msg-a');
-	await wait('exec-b', 'msg-b');
+	const requestA = await sendWait('exec-a');
+	const requestB = await sendWait('exec-b');
+	assert.equal(requestA.metadata._n8n, n8nWaitBinding(CREDENTIALS.signingSecret, 'exec-a'));
+	assert.equal(requestA.idempotencyKey, requestB.idempotencyKey, 'the binding must not affect default idempotency');
+	assert.notEqual(requestA.metadata._n8n, requestB.metadata._n8n);
 
-	const reply = async (executionId, messageId) => {
-		const body = { type: 'message.replied', message: { id: messageId, text: 'ok' } };
+	const reply = async (executionId, metadata) => {
+		const body = { type: 'message.replied', message: { id: `msg-${executionId}`, text: 'ok', metadata } };
 		const raw = Buffer.from(JSON.stringify(body));
 		const id = `evt-${executionId}`;
 		const ctx = webhookContext({
 			body,
 			rawBody: raw,
-			staticData,
+			staticData: {}, // n8n rebuilds this context from an execution snapshot.
 			executionId,
 			headers: {
 				'x-synapsai-timestamp': String(NOW),
@@ -413,11 +462,13 @@ test('resume bindings remain isolated across overlapping waits on the same node'
 		return { ctx, result: await new SynapsAi().webhook.call(ctx) };
 	};
 
-	const a = await reply('exec-a', 'msg-a');
-	const b = await reply('exec-b', 'msg-b');
-	assert.equal(a.result.workflowData[0][0].json.messageId, 'msg-a');
-	assert.equal(b.result.workflowData[0][0].json.messageId, 'msg-b');
-	assert.deepEqual(staticData.waitingMessages, {});
+	const wrongExecution = await reply('exec-b', requestA.metadata);
+	assert.equal(wrongExecution.ctx.res.statusCode, 401);
+	assert.equal(wrongExecution.result.workflowData, undefined);
+	const missingBinding = await reply('exec-b', { dealId: 'D-9' });
+	assert.equal(missingBinding.ctx.res.statusCode, 401);
+	const matching = await reply('exec-a', requestA.metadata);
+	assert.equal(matching.result.workflowData[0][0].json.messageId, 'msg-exec-a');
 });
 
 test('resume webhook: a forged signature answers 401 and does not resume', async () => {

@@ -13,7 +13,13 @@ import type {
 import { createHash } from 'node:crypto';
 import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
-import { headerValue, rawBodyOf, verifySynapsaiSignature } from '../shared/signature';
+import {
+	constantTimeHexEqual,
+	headerValue,
+	n8nWaitBinding,
+	rawBodyOf,
+	verifySynapsaiSignature,
+} from '../shared/signature';
 import {
 	asObject,
 	collectCursor,
@@ -670,12 +676,8 @@ export const properties: INodeProperties[] = [
 	},
 ];
 
-const WAITING_MESSAGE_TTL_MS = 24 * 60 * 60 * 1000;
-
-interface WaitingMessageBinding {
-	messageId: string;
-	createdAt: number;
-}
+const MAX_METADATA_KEYS = 20;
+const MAX_METADATA_BYTES = 2 * 1024;
 
 export class SynapsAi implements INodeType {
 	description: INodeTypeDescription = {
@@ -758,21 +760,13 @@ export class SynapsAi implements INodeType {
 			response.status(204).end();
 			return { noWebhookResponse: true };
 		}
-		const state = this.getWorkflowStaticData('node') as IDataObject;
 		const message = body.message as IDataObject | undefined;
-		const executionId = this.getExecutionId();
-		const waitingMessages = (state.waitingMessages ?? {}) as Record<string, WaitingMessageBinding>;
-		const binding = waitingMessages[executionId];
-		if (
-			!binding ||
-			Date.now() - binding.createdAt >= WAITING_MESSAGE_TTL_MS ||
-			message?.id !== binding.messageId
-		) {
+		const metadata = message?.metadata as IDataObject | undefined;
+		const expected = n8nWaitBinding(String(credentials.signingSecret ?? ''), this.getExecutionId());
+		if (!constantTimeHexEqual(metadata?._n8n, expected)) {
 			response.status(401).json({ code: 'REPLY_MISMATCH' });
 			return { noWebhookResponse: true };
 		}
-		delete waitingMessages[executionId];
-		state.waitingMessages = waitingMessages;
 		return { webhookResponse: '', workflowData: [[{ json: replyItem(body) }]] };
 	}
 
@@ -803,21 +797,16 @@ export class SynapsAi implements INodeType {
 								{ itemIndex: i },
 							);
 						}
-						const accepted = await ask.call(this, i, this.getSignedResumeUrl());
-						const state = this.getWorkflowStaticData('node') as IDataObject;
-						const now = Date.now();
-						const waitingMessages = (state.waitingMessages ?? {}) as Record<
-							string,
-							WaitingMessageBinding
-						>;
-						for (const [id, binding] of Object.entries(waitingMessages)) {
-							if (now - binding.createdAt >= WAITING_MESSAGE_TTL_MS) delete waitingMessages[id];
-						}
-						waitingMessages[this.getExecutionId()] = {
-							messageId: String(accepted.messageId ?? ''),
-							createdAt: now,
-						};
-						state.waitingMessages = waitingMessages;
+						const resumeUrl = new URL(
+							this.evaluateExpression('{{$execution.resumeUrl}}', i) as string,
+						);
+						resumeUrl.pathname = `${resumeUrl.pathname.replace(/\/$/, '')}/${encodeURIComponent(this.getNode().id)}`;
+						const accepted = await ask.call(
+							this,
+							i,
+							resumeUrl.toString(),
+							String(credentials.signingSecret ?? ''),
+						);
 						const minutes = this.getNodeParameter('waitMinutes', i, 10) as number;
 						await this.putExecutionToWait(new Date(Date.now() + minutes * 60_000));
 						// Until the reply arrives the output is the accepted message; the webhook replaces it.
@@ -947,16 +936,28 @@ async function ask(
 	this: IExecuteFunctions,
 	i: number,
 	resumeUrl: string | undefined,
+	signingSecret?: string,
 ): Promise<IDataObject> {
 	const agentKey = segment(this.getNodeParameter('agentKey', i) as string, 'Agent');
 	const options = this.getNodeParameter('options', i, {}) as IDataObject;
 	const contact = compact({ name: options.name, phone: options.phone, email: options.email });
+	let metadata = parseMetadata.call(this, options.metadata, i);
+	if (resumeUrl) {
+		if (!signingSecret) {
+			throw new NodeOperationError(this.getNode(), 'Wait for Reply needs the Agent Signing Secret', {
+				itemIndex: i,
+			});
+		}
+		metadata ??= {};
+		metadata._n8n = n8nWaitBinding(signingSecret, this.getExecutionId());
+		validateMetadata.call(this, metadata, i);
+	}
 	const body = compact({
 		externalUserId: this.getNodeParameter('externalUserId', i) as string,
 		text: this.getNodeParameter('text', i) as string,
 		contactId: options.contactId,
 		contact: Object.keys(contact).length > 0 ? contact : undefined,
-		metadata: parseMetadata.call(this, options.metadata, i),
+		metadata,
 		callbackUrl: resumeUrl ?? options.callbackUrl,
 	});
 	body.idempotencyKey = options.idempotencyKey || defaultIdempotencyKey.call(this, i, agentKey, body);
@@ -1015,6 +1016,13 @@ function defaultIdempotencyKey(
 	const requestBody = { ...body };
 	delete requestBody.callbackUrl;
 	delete requestBody.idempotencyKey;
+	const metadata = requestBody.metadata as IDataObject | undefined;
+	if (metadata && Object.prototype.hasOwnProperty.call(metadata, '_n8n')) {
+		const publicMetadata = { ...metadata };
+		delete publicMetadata._n8n;
+		if (Object.keys(publicMetadata).length > 0) requestBody.metadata = publicMetadata;
+		else delete requestBody.metadata;
+	}
 	const canonical = canonicalJson({
 		workflowId: this.getWorkflow().id ?? 'unsaved',
 		nodeId: this.getNode().id,
@@ -1096,7 +1104,31 @@ function parseMetadata(
 			itemIndex: i,
 		});
 	}
-	return Object.keys(parsed).length > 0 ? (parsed as IDataObject) : undefined;
+	const metadata = parsed as IDataObject;
+	if (Object.prototype.hasOwnProperty.call(metadata, '_n8n')) {
+		throw new NodeOperationError(this.getNode(), 'Metadata key "_n8n" is reserved for Wait for Reply', {
+			itemIndex: i,
+		});
+	}
+	validateMetadata.call(this, metadata, i);
+	return Object.keys(metadata).length > 0 ? metadata : undefined;
+}
+
+function validateMetadata(this: IExecuteFunctions, metadata: IDataObject, i: number): void {
+	if (Object.keys(metadata).length > MAX_METADATA_KEYS) {
+		throw new NodeOperationError(
+			this.getNode(),
+			`Metadata supports at most ${MAX_METADATA_KEYS} keys, including the reserved _n8n key used by Wait for Reply`,
+			{ itemIndex: i },
+		);
+	}
+	if (Buffer.byteLength(JSON.stringify(metadata), 'utf8') > MAX_METADATA_BYTES) {
+		throw new NodeOperationError(
+			this.getNode(),
+			`Metadata must be at most 2 KB after adding the reserved _n8n key used by Wait for Reply`,
+			{ itemIndex: i },
+		);
+	}
 }
 
 function safeParse(text: string): unknown {

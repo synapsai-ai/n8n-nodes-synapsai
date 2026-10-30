@@ -33,6 +33,19 @@ export function verifySynapsaiSignature(input: SignatureInput): boolean {
 	return a.length === b.length && timingSafeEqual(a, b);
 }
 
+/** A per-execution binding echoed in message metadata, independent of workflow static-data persistence. */
+export function n8nWaitBinding(secret: string, executionId: string): string {
+	return createHmac('sha256', secret).update(`n8n-wait.${executionId}`).digest('hex');
+}
+
+/** Constant-time comparison for a lower-case hex HMAC. */
+export function constantTimeHexEqual(actual: unknown, expected: string): boolean {
+	if (typeof actual !== 'string' || !/^[a-f0-9]{64}$/.test(actual)) return false;
+	const actualBytes = Buffer.from(actual, 'hex');
+	const expectedBytes = Buffer.from(expected, 'hex');
+	return actualBytes.length === expectedBytes.length && timingSafeEqual(actualBytes, expectedBytes);
+}
+
 /** Lower-cased single header value; a repeated header is a refusal (returns undefined). */
 export function headerValue(
 	headers: Record<string, string | string[] | undefined>,

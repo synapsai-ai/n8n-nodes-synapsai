@@ -48,7 +48,7 @@ function executeContext({
 	const http = httpFake(responder);
 	const state = {
 		waitTill: undefined,
-		resumeUrl: 'https://n8n.example.com/webhook-waiting/42/node-1?signature=abc',
+		resumeUrl: 'https://n8n.example.com/webhook-waiting/42?signature=abc',
 	};
 	const ctx = {
 		http,
@@ -65,7 +65,7 @@ function executeContext({
 		getWorkflow: () => ({ id: 'wf-7' }),
 		getWorkflowStaticData: () => staticData,
 		continueOnFail: () => false,
-		getSignedResumeUrl: () => state.resumeUrl,
+		evaluateExpression: () => state.resumeUrl,
 		putExecutionToWait: async (date) => {
 			state.waitTill = date;
 		},
