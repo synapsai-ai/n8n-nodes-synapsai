@@ -1,0 +1,189 @@
+{
+  "name": "SynapsAI — Sheet → qualified leads",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Leads"
+        },
+        "event": "rowAdded",
+        "options": {}
+      },
+      "name": "New sheet row",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "contact",
+        "operation": "upsert",
+        "contact": {
+          "phone": "={{ $json.phone }}",
+          "email": "={{ $json.email }}",
+          "name": "={{ $json.name }}",
+          "externalUserId": "={{ 'sheet-' + $json.row_number }}"
+        },
+        "mode": "fill"
+      },
+      "name": "Upsert contact",
+      "type": "n8n-nodes-synapsai.synapsAi",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "credentials": {
+        "synapsAiApi": {
+          "id": "",
+          "name": "SynapsAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "agent",
+        "operation": "ask",
+        "agentKey": "",
+        "externalUserId": "={{ 'sheet-' + $('New sheet row').item.json.row_number }}",
+        "text": "={{ 'Qualify this new lead. Return a brief decision (qualified or not qualified) and a short reason. Name: ' + $('New sheet row').item.json.name + '. Interest: ' + $('New sheet row').item.json.interest }}",
+        "waitForReply": true,
+        "options": {
+          "contactId": "={{ $json.contactId }}",
+          "idempotencyKey": "={{ 'sheet-row-' + $('New sheet row').item.json.row_number }}",
+          "metadata": "={{ JSON.stringify({ source: 'sheet', row: String($('New sheet row').item.json.row_number) }) }}"
+        },
+        "waitMinutes": 10
+      },
+      "name": "Ask agent to qualify",
+      "type": "n8n-nodes-synapsai.synapsAi",
+      "typeVersion": 1,
+      "position": [
+        520,
+        0
+      ],
+      "credentials": {
+        "synapsAiApi": {
+          "id": "",
+          "name": "SynapsAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email": "={{ $('New sheet row').item.json.email }}",
+            "assessment": "={{ $json.text }}"
+          },
+          "matchingColumns": [
+            "email"
+          ],
+          "schema": [
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "assessment",
+              "displayName": "assessment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "name": "Write assessment to sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        780,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "New sheet row": {
+      "main": [
+        [
+          {
+            "node": "Upsert contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert contact": {
+      "main": [
+        [
+          {
+            "node": "Ask agent to qualify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask agent to qualify": {
+      "main": [
+        [
+          {
+            "node": "Write assessment to sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "The agent qualifies each new lead and writes its assessment back to the sheet.",
+    "requires": "n8n-nodes-synapsai >= 0.2.2; SynapsAI GROWTH+"
+  },
+  "tags": []
+}

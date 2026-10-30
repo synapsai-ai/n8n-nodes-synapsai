@@ -1,0 +1,84 @@
+{
+  "name": "SynapsAI Demo 2 — Latest leads",
+  "nodes": [
+    {
+      "name": "Run workflow manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "name": "Latest leads",
+      "type": "n8n-nodes-synapsai.synapsAi",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "resource": "lead",
+        "operation": "getAll",
+        "agentKey": "",
+        "leadFilters": {},
+        "returnAll": false,
+        "limit": 10
+      },
+      "credentials": {
+        "synapsAiApi": {
+          "id": "",
+          "name": "SynapsAI API"
+        }
+      }
+    },
+    {
+      "name": "Format leads as text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "return $input.all().map((item, i) => {\n  const lead = item.json;\n  const title = lead.dealTitle || '(No title)';\n  const qualification = lead.qualified ? 'Qualified' : 'Not qualified';\n  const line = (i + 1) + '. [' + lead.origin + '] ' + title + ' · score ' + (lead.score ?? '-') + ' · ' + qualification + ' · ' + (lead.status ?? '-') + ' · ' + (lead.recordedAt ?? '').slice(0, 10);\n  return { json: { line, interest: lead.interest } };\n});"
+      }
+    }
+  ],
+  "connections": {
+    "Run workflow manually": {
+      "main": [
+        [
+          {
+            "node": "Latest leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Latest leads": {
+      "main": [
+        [
+          {
+            "node": "Format leads as text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "requires": "n8n-nodes-synapsai >= 0.2.2; SynapsAI GROWTH+"
+  },
+  "active": false,
+  "tags": [],
+  "description": "List the 10 latest leads and format each one as a text line. Works in localhost."
+}

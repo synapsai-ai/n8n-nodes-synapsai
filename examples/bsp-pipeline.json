@@ -1,0 +1,101 @@
+{
+  "name": "SynapsAI — BSP pipeline (inbound → agent → BSP send)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bsp-inbound",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "name": "BSP inbound",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "agent",
+        "operation": "ask",
+        "agentKey": "",
+        "externalUserId": "={{ $json.body.from }}",
+        "text": "={{ $json.body.text }}",
+        "waitForReply": true,
+        "waitMinutes": 5,
+        "options": {
+          "idempotencyKey": "={{ $json.body.messageId }}",
+          "phone": "={{ $json.body.from }}"
+        }
+      },
+      "name": "Ask SynapsAI",
+      "type": "n8n-nodes-synapsai.synapsAi",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "credentials": {
+        "synapsAiApi": {
+          "id": "",
+          "name": "SynapsAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.your-bsp.example/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: $('BSP inbound').item.json.body.from, text: $json.text }) }}",
+        "options": {}
+      },
+      "name": "Send through BSP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "BSP inbound": {
+      "main": [
+        [
+          {
+            "node": "Ask SynapsAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask SynapsAI": {
+      "main": [
+        [
+          {
+            "node": "Send through BSP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Your messaging provider posts each inbound message to this workflow; SynapsAI answers inside it and the reply is sent back through the provider. Wait for Reply requires a public HTTPS n8n URL on port 443 configured with WEBHOOK_URL, plus the Agent Signing Secret in the credential.",
+    "requires": "n8n-nodes-synapsai >= 0.2.2; SynapsAI GROWTH+"
+  },
+  "tags": []
+}

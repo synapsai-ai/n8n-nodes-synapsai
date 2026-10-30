@@ -1,0 +1,132 @@
+{
+  "name": "SynapsAI — CSAT radar (low ratings → Slack)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "name": "Every hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "conversation",
+        "operation": "getAll",
+        "filters": {
+          "csatMin": 1,
+          "csatMax": 2,
+          "from": "={{ $now.minus({ hours: 1 }).toISO() }}"
+        },
+        "returnAll": true
+      },
+      "name": "Low CSAT conversations",
+      "type": "n8n-nodes-synapsai.synapsAi",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "credentials": {
+        "synapsAiApi": {
+          "id": "",
+          "name": "SynapsAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "conversation",
+        "operation": "get",
+        "conversationId": "={{ $json.chatId }}"
+      },
+      "name": "Read the rating",
+      "type": "n8n-nodes-synapsai.synapsAi",
+      "typeVersion": 1,
+      "position": [
+        520,
+        0
+      ],
+      "credentials": {
+        "synapsAiApi": {
+          "id": "",
+          "name": "SynapsAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#cx-alerts"
+        },
+        "text": "=⚠️ CSAT {{ $json.csat.score }} — {{ $json.csat.feedback || 'no comment' }} — {{ $json.contactDisplayName || 'a customer' }} — conversation {{ $json.chatId }}",
+        "otherOptions": {}
+      },
+      "name": "Post to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        780,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Every hour": {
+      "main": [
+        [
+          {
+            "node": "Low CSAT conversations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Low CSAT conversations": {
+      "main": [
+        [
+          {
+            "node": "Read the rating",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read the rating": {
+      "main": [
+        [
+          {
+            "node": "Post to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Every hour, conversations rated 1–2 in the last hour are posted to a Slack channel.",
+    "requires": "n8n-nodes-synapsai >= 0.2.2; SynapsAI GROWTH+"
+  },
+  "tags": []
+}

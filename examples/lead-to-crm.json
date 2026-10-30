@@ -1,0 +1,112 @@
+{
+  "name": "SynapsAI — Lead captured → CRM",
+  "nodes": [
+    {
+      "parameters": {
+        "agentKey": "",
+        "events": [
+          "lead.captured"
+        ],
+        "includes": [
+          "contact"
+        ]
+      },
+      "name": "Lead captured",
+      "type": "n8n-nodes-synapsai.synapsAiTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "synapsAiApi": {
+          "id": "",
+          "name": "SynapsAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.contact?.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Has an e-mail",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "resource": "contact",
+        "operation": "upsert",
+        "email": "={{ $json.contact.email }}",
+        "additionalFields": {
+          "firstName": "={{ $json.contact.name }}",
+          "phoneNumber": "={{ $json.contact.phone }}",
+          "message": "={{ [$json.lead.dealTitle, $json.lead.interest, $json.lead.timeframe].filter(Boolean).join(' — ') }}"
+        }
+      },
+      "name": "Create or update HubSpot contact",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.1,
+      "position": [
+        520,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Lead captured": {
+      "main": [
+        [
+          {
+            "node": "Has an e-mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has an e-mail": {
+      "main": [
+        [
+          {
+            "node": "Create or update HubSpot contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Every lead SynapsAI captures when a conversation closes is created or updated in HubSpot. The lead carries no personal data; the person comes from the contact section (key scopes: hooks:write, leads:read, contacts:read).",
+    "requires": "n8n-nodes-synapsai >= 0.2.2; SynapsAI GROWTH+"
+  },
+  "tags": []
+}

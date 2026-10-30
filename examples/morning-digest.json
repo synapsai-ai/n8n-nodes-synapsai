@@ -1,0 +1,160 @@
+{
+  "name": "SynapsAI — Morning digest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1-5"
+            }
+          ]
+        }
+      },
+      "name": "Weekdays 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "conversation",
+        "operation": "getAll",
+        "filters": {
+          "from": "={{ $today.minus({ days: 1 }).toISO() }}",
+          "to": "={{ $today.toISO() }}"
+        },
+        "returnAll": true
+      },
+      "name": "Yesterday's conversations",
+      "type": "n8n-nodes-synapsai.synapsAi",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "credentials": {
+        "synapsAiApi": {
+          "id": "",
+          "name": "SynapsAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "conversation",
+        "operation": "getAll",
+        "filters": {
+          "csatMin": 1,
+          "csatMax": 2,
+          "from": "={{ $today.minus({ days: 1 }).toISO() }}",
+          "to": "={{ $today.toISO() }}"
+        },
+        "returnAll": true
+      },
+      "name": "Rated 1-2 yesterday",
+      "type": "n8n-nodes-synapsai.synapsAi",
+      "typeVersion": 1,
+      "position": [
+        520,
+        0
+      ],
+      "credentials": {
+        "synapsAiApi": {
+          "id": "",
+          "name": "SynapsAI API"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const conversations = $('Yesterday\\'s conversations').all().length;\nconst lowRated = $('Rated 1-2 yesterday').all().length;\nreturn [{ json: { subject: `SynapsAI — ${conversations} conversations`, text: `Conversations: ${conversations}\\nRated 1-2: ${lowRated}` } }];"
+      },
+      "name": "Build digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "fromEmail": "digest@your-company.example",
+        "toEmail": "team@your-company.example",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "options": {}
+      },
+      "name": "E-mail digest",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1300,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Weekdays 08:00": {
+      "main": [
+        [
+          {
+            "node": "Yesterday's conversations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yesterday's conversations": {
+      "main": [
+        [
+          {
+            "node": "Rated 1-2 yesterday",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rated 1-2 yesterday": {
+      "main": [
+        [
+          {
+            "node": "Build digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build digest": {
+      "main": [
+        [
+          {
+            "node": "E-mail digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "At 08:00 on weekdays, yesterday's conversations and low-rated conversations are counted and e-mailed.",
+    "requires": "n8n-nodes-synapsai >= 0.2.2; SynapsAI GROWTH+"
+  },
+  "tags": []
+}

@@ -7,7 +7,7 @@ Works on n8n Cloud and self-hosted n8n (1.x). Zero runtime dependencies.
 
 ## Install
 
-- **n8n Cloud** — Nodes panel → search “SynapsAI” (after verification).
+- **n8n Cloud** — n8n verification is in progress. Until it is complete, install the community node on self-hosted n8n using the [self-hosted quickstart](https://docs.synapsai.app/workflows/n8n-self-hosted/).
 - **Self-hosted** — Settings → Community nodes → Install → `n8n-nodes-synapsai`, or
   `npm install n8n-nodes-synapsai` in `~/.n8n/nodes`.
 
@@ -17,8 +17,8 @@ Create a **SynapsAI API** credential:
 
 | Field | Value |
 |---|---|
-| API Key | an `sk_live_…` key from the console (Account → API keys). Scopes: `messages:write` for Ask, `conversations:read`, `contacts:read`/`contacts:write`, `leads:read`, `hooks:write` for the trigger, `agents:read` for the agent picker. |
-| Agent Signing Secret | the agent’s signing secret: agent → **Extensions** → **Workflow API (n8n · Make)**. Needed only for **Wait for Reply**. |
+| API Key | an `sk_live_…` key from the console (Account → API keys). Grant only the scopes the workflow needs: `messages:write` for Ask; `conversations:read` for conversation and message reads; `contacts:read` or `contacts:write` for contact reads or upsert; `leads:read` for leads; `hooks:write` to subscribe a Trigger; `campaigns:read` or `campaigns:write` for campaign reads or writes; `agents:read` for the agent picker. |
+| Agent Signing Secret | the agent’s signing secret: agent → **Extensions** → **Workflow API (n8n · Make)**. Needed for **Wait for Reply**. |
 
 Do not give an AI Agent a key with `campaigns:write` or `contacts:write`.
 
@@ -35,6 +35,9 @@ the test fails with **PLAN_FEATURE_UNAVAILABLE**.
 | Contact | Create or update | `POST /v1/contacts:upsert` |
 | Lead | Get many (CRM outcome filter; Return All or Limit) | `GET /v1/leads` → `{items, nextCursor, total}` |
 | Message | Get | `GET /v1/messages/{messageId}` |
+| Template | Get many | `GET /v1/agents/{agentKey}/templates` |
+| Campaign | Get / Get deliveries | `GET /v1/campaigns/{id}` / `GET /v1/campaigns/{id}/deliveries` |
+| Campaign | Send / Cancel | `POST /v1/agents/{agentKey}/campaigns` / `POST /v1/campaigns/{id}:cancel` |
 
 ### Ask → Wait for Reply
 
@@ -77,11 +80,18 @@ trigger's subscribe/unsubscribe are never retried: the write may have been appli
 
 Use the separate **SynapsAI Tool (read-only)** node with an AI Agent. It exposes only read operations. The API key
 connected to an AI Agent must not have `campaigns:write` or `contacts:write` scopes.
+It supports Conversation → Get/Get many, Contact → Get many, Lead → Get many, Message → Get, Template → Get many,
+and Campaign → Get/Get deliveries. It does not expose Ask, contact upsert, campaign send or cancel.
 
 ## SynapsAI Trigger
 
-Events: **Agent replied** (`message.replied`), **Operator replied** (`message.operator`), **Conversation ended**,
-**Human requested** (`handoff.requested`), **Lead captured** (`lead.captured`).
+Events: **Agent replied** (`message.replied` and `message.failed`), **Operator replied** (`message.operator`),
+**Conversation ended** (`conversation.ended`), **Human requested** (`handoff.requested`), **Lead captured**
+(`lead.captured`), **Campaign completed** (`campaign.completed`), **Campaign message delivered**
+(`campaign.message.delivered`), **Campaign message failed** (`campaign.message.failed`), and **Campaign message read**
+(`campaign.message.read`). Creating a subscription needs `hooks:write`; campaign events need `campaigns:read`, Lead Captured
+needs `leads:read`, Agent Replied and Operator Replied need `conversations:read`, and included contact data needs
+`contacts:read`.
 
 *Lead captured* needs `leads:read`; its `lead` (`score, interest, dealTitle, budget, timeframe, contactDeclined`)
 holds no personal data — tick **Include → Contact** (`contacts:read`) to get the person. *Agent replied* also
@@ -90,6 +100,23 @@ receives `message.failed`; *Agent replied* and *Operator replied* need `conversa
 Activating the workflow subscribes the trigger’s webhook URL at SynapsAI (`POST /v1/agents/{agentKey}/hooks`); it keeps
 the subscription id and signing secret in the workflow’s static data, and deactivating unsubscribes
 (`DELETE /v1/hooks/{id}`). Every request is verified; a bad signature gets 401. Up to 20 API subscriptions per agent.
+
+## Examples
+
+Import a file using **Workflows → Import from File**. Set the blank Agent Name or ID, connect credentials, and
+configure each external service before activating the workflow.
+
+| Workflow | What it does | SynapsAI scopes | Public HTTPS URL |
+|---|---|---|---|
+| [Lead captured → CRM](examples/lead-to-crm.json) | Sends captured leads and included contact details to HubSpot. | `hooks:write`, `leads:read`, `contacts:read` | Yes, for the Trigger. |
+| [CSAT radar](examples/csat-radar.json) | Posts conversations rated 1–2 in the last hour to Slack. | `conversations:read` | No. |
+| [Human requested → Slack](examples/handoff-to-slack.json) | Sends a Slack alert with the conversation link after a handoff request. | `hooks:write`, `contacts:read` | Yes, for the Trigger. |
+| [BSP pipeline](examples/bsp-pipeline.json) | Receives a provider message, waits for the agent reply, and sends it back through the provider. | `messages:write` | Yes; Wait for Reply also needs the Agent Signing Secret. |
+| [Morning digest](examples/morning-digest.json) | Emails yesterday’s conversation and low-CSAT counts on weekdays. | `conversations:read` | No. |
+| [Sheet contacts and lead qualification](examples/sheet-contacts-lead.json) | Upserts each new sheet contact, asks the agent to qualify the lead, then writes the reply back to the row. | `contacts:write`, `messages:write` | Yes; Wait for Reply also needs the Agent Signing Secret. |
+| [Latest conversations](examples/latest-conversations.json) | Lists the 10 latest conversations as text. | `conversations:read` | No. |
+| [Latest leads](examples/latest-leads.json) | Lists the 10 latest leads as text. | `leads:read` | No. |
+| [Lead captured to text](examples/lead-captured-to-text.json) | Formats each captured lead event as text. | `hooks:write`, `leads:read` | Yes, for the Trigger. |
 
 ## Develop
 
@@ -103,18 +130,15 @@ npm run dev          # n8n with this node loaded, at http://localhost:5678
 
 ## Release
 
-The `n8n-nodes-synapsai@0.0.1` placeholder already reserves the npm name. After this PR merges, publish the first
-functional version (`0.2.1`) manually from a clean checkout of its merge commit with npm 2FA:
+The `n8n-nodes-synapsai@0.0.1` placeholder reserves the npm name. After this PR merges, David releases 0.2.3 from
+the package merge commit by pushing the protected version tag:
 
 ```bash
-npm ci && npm run verify && RELEASE_MODE=true npm publish --access public
+git tag 0.2.3 && git push origin 0.2.3
 ```
 
-This publishes the functional node package. Then configure npm Trusted Publisher for
-owner `synapsai-ai`, repo `n8n-nodes-synapsai`, workflow `publish.yml`, environment `npm-publish`; set package publishing
-to require 2FA and disallow tokens; create the GitHub `npm-publish` environment with a required reviewer and a tag
-ruleset matching `*.*.*`. Every later release (0.2.2+) is published with provenance by pushing a tag equal to
-`package.json` `version` through `.github/workflows/publish.yml`.
+The `npm-publish` environment requires David’s approval; approve the Publish job in Actions. The workflow publishes with
+provenance. Do not publish manually with an npm token.
 
 ## License
 
