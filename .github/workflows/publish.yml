@@ -1,0 +1,57 @@
+# Publishes n8n-nodes-synapsai to npm with a provenance statement on every version tag (0.1.0, 1.2.3, ...).
+#
+# Since 2026-05-01 n8n requires community nodes to be published from GitHub Actions with npm provenance
+# (a prerequisite of the n8n Creator Portal verification). Provenance proves the tarball was built by THIS
+# workflow, from THIS repository and commit.
+#
+# The README-only 0.0.1 placeholder already reserves the npm package, so configure npm Trusted Publisher
+# (owner synapsai-ai, repo n8n-nodes-synapsai, workflow publish.yml, environment npm-publish) before the
+# first functional release. After merge, push a tag matching package.json (0.2.1) to publish with
+# provenance. Require a reviewer on the GitHub npm-publish environment and protect `*.*.*` tags.
+# Remove any NPM_TOKEN after verifying Trusted Publisher; require 2FA and disallow npm tokens.
+
+name: Publish
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      id-token: write # OIDC token for the npm provenance attestation
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      # npm >= 11.5 is needed for trusted publishing (OIDC).
+      - run: npm install -g npm@11.6.2
+
+      - run: npm ci --ignore-scripts
+
+      - name: Tag matches package.json version
+        run: test "$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+
+      - name: Zero runtime dependencies
+        run: npm run check:deps
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build and test
+        run: npm test
+
+      - name: Publish with provenance
+        run: npm publish --provenance --access public
+        env:
+          RELEASE_MODE: 'true'

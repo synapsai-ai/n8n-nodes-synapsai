@@ -1,0 +1,18 @@
+{
+	"node": "n8n-nodes-synapsai.synapsAiTrigger",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Communication", "Sales"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://docs.synapsai.app/workflows/n8n-cloud/#1-mint-an-api-key"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://docs.synapsai.app/workflows/"
+			}
+		]
+	}
+}
