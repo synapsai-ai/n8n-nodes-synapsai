@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3
+
+- Docs: add nine English example workflows and README coverage for n8n Creator Portal verification.
+- Docs: state that n8n Cloud verification is in progress and link the self-hosted quickstart.
+- Fix: remove the leads count from the morning digest because `GET /v1/leads` has a fixed 30-day window and no date-range filter; a server API enhancement is a follow-up.
+
 ## 0.2.2
 
 - Security: Tool node enforces read-only at runtime.

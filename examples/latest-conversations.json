@@ -1,0 +1,83 @@
+{
+  "name": "SynapsAI Demo 1 — Latest conversations",
+  "nodes": [
+    {
+      "name": "Run workflow manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "name": "Latest conversations",
+      "type": "n8n-nodes-synapsai.synapsAi",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "resource": "conversation",
+        "operation": "getAll",
+        "filters": {},
+        "returnAll": false,
+        "limit": 10
+      },
+      "credentials": {
+        "synapsAiApi": {
+          "id": "",
+          "name": "SynapsAI API"
+        }
+      }
+    },
+    {
+      "name": "Format conversations as text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "return $input.all().map((item, i) => {\n  const conversation = item.json;\n  const contact = conversation.contactDisplayName ?? conversation.externalUserId ?? 'No contact';\n  const message = (conversation.lastMessageText ?? '').slice(0, 80);\n  const reason = conversation.closeReason ? ' (' + conversation.closeReason + ')' : '';\n  const line = (i + 1) + '. [' + conversation.origin + '] ' + contact + ' · agent ' + conversation.agentKey + ' · ' + conversation.status + reason + ' · ' + (conversation.messageCount ?? 0) + ' messages — \"' + message + '\"';\n  return { json: { line } };\n});"
+      }
+    }
+  ],
+  "connections": {
+    "Run workflow manually": {
+      "main": [
+        [
+          {
+            "node": "Latest conversations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Latest conversations": {
+      "main": [
+        [
+          {
+            "node": "Format conversations as text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "requires": "n8n-nodes-synapsai >= 0.2.2; SynapsAI GROWTH+"
+  },
+  "active": false,
+  "tags": [],
+  "description": "List the 10 latest conversations and format each one as a text line. Works in localhost."
+}

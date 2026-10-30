@@ -1,0 +1,70 @@
+{
+  "name": "SynapsAI — Human requested → Slack",
+  "nodes": [
+    {
+      "parameters": {
+        "agentKey": "",
+        "events": [
+          "handoff.requested"
+        ],
+        "includes": [
+          "contact"
+        ]
+      },
+      "name": "Human requested",
+      "type": "n8n-nodes-synapsai.synapsAiTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "synapsAiApi": {
+          "id": "",
+          "name": "SynapsAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#support"
+        },
+        "text": "=🙋 {{ $json.contact?.name || 'A customer' }} wants a person on {{ $json.conversation.channel }} — https://console.synapsai.app/dashboard/agent/{{ $json.agent.key }}/conversations?chat={{ encodeURIComponent($json.conversation.id) }}",
+        "otherOptions": {}
+      },
+      "name": "Alert the team",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        260,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Human requested": {
+      "main": [
+        [
+          {
+            "node": "Alert the team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "When a customer asks for a person, your team gets a Slack message with the conversation link.",
+    "requires": "n8n-nodes-synapsai >= 0.2.2; SynapsAI GROWTH+"
+  },
+  "tags": []
+}

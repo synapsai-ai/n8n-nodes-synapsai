@@ -1,0 +1,64 @@
+{
+  "name": "SynapsAI Demo 3 — Lead captured to text",
+  "nodes": [
+    {
+      "name": "Lead captured",
+      "type": "n8n-nodes-synapsai.synapsAiTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "agentKey": "",
+        "events": [
+          "lead.captured"
+        ],
+        "includes": [
+          "contact"
+        ]
+      },
+      "credentials": {
+        "synapsAiApi": {
+          "id": "",
+          "name": "SynapsAI API"
+        }
+      }
+    },
+    {
+      "name": "Format event as text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const event = $json;\nconst text = `New lead: ${event.contact?.name ?? 'No name'} | email: ${event.contact?.email ?? '-'} | phone: ${event.contact?.phone ?? '-'} | conversation: ${event.conversationId ?? '-'}`;\nreturn [{ json: { text, event } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Lead captured": {
+      "main": [
+        [
+          {
+            "node": "Format event as text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "requires": "n8n-nodes-synapsai >= 0.2.2; SynapsAI GROWTH+"
+  },
+  "active": false,
+  "tags": [],
+  "description": "Receive each captured lead event and format it as text. Requires a public HTTPS n8n URL for the webhook."
+}
