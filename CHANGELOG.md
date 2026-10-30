@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.1
+
+- Security: F2 — split AI Agent access into a read-only tool node.
+- Security: F3 — pin credential tests and API calls to the SynapsAI host.
+- Security: F4 — derive default idempotency keys from canonical workflow, node, request and input data.
+- Security: F5 — reject replayed trigger deliveries and bind Ask replies to their waiting execution.
+- Security: F6 — reject dot-segment and ASCII-control path identifiers.
+- Security: F7 — pin publish actions and npm, use a protected environment, skip install scripts and add Dependabot.
+- Security: F8 — verify no `@synapsai/` scope references in package or docs.
+- Security: F9 — exclude source maps and TypeScript build metadata from the tarball.
+- Bug fix: preserve `itemIndex` when rethrowing `NodeApiError`.
+
 ## 0.2.0
 
 - Campaign: Send (WhatsApp template, WhatsApp session, Messenger, Instagram; up to 1,000 contacts, per-recipient

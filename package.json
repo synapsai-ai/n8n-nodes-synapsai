@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-synapsai",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "n8n nodes for SynapsAI: ask a SynapsAI agent inside a workflow and trigger on its replies, closed conversations and captured leads.",
   "license": "MIT",
   "homepage": "https://docs.synapsai.app/workflows/n8n-cloud/",
@@ -33,7 +33,9 @@
     "verify": "npm run check:deps && npm run lint && npm test"
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.tsbuildinfo",
+    "!dist/**/*.map"
   ],
   "n8n": {
     "n8nNodesApiVersion": 1,
