@@ -8,6 +8,7 @@ import type {
 	INodeTypeDescription,
 	IWebhookFunctions,
 	IWebhookResponseData,
+	JsonObject,
 } from 'n8n-workflow';
 import { createHash, createHmac } from 'node:crypto';
 import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
@@ -680,7 +681,8 @@ export class SynapsAi implements INodeType {
 		description:
 			'Ask a SynapsAI agent, send it WhatsApp template campaigns, and read its conversations, contacts and leads',
 		defaults: { name: 'SynapsAI' },
-		usableAsTool: false,
+		// n8n's published type omits false although the runtime checks the boolean value.
+		usableAsTool: false as unknown as true,
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
 		credentials: [{ name: CREDENTIAL_NAME, required: true }],
@@ -898,7 +900,11 @@ export class SynapsAi implements INodeType {
 				if (error instanceof NodeApiError) {
 					// n8n-workflow 2.45.1 returns the same NodeApiError from its constructor.
 					error.context.itemIndex = i;
-					throw error;
+					throw new NodeApiError(this.getNode(), error as unknown as JsonObject, {
+						itemIndex: i,
+						message: error.message,
+						httpCode: error.httpCode ?? undefined,
+					});
 				}
 				throw new NodeOperationError(this.getNode(), error as Error, { itemIndex: i });
 			}

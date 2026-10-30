@@ -1,6 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
+const { NodeApiError } = require('n8n-workflow');
 
 const { verifySynapsaiSignature } = require('../dist/nodes/shared/signature');
 const { SynapsAi, replyItem } = require('../dist/nodes/SynapsAi/SynapsAi.node');
@@ -39,7 +40,7 @@ test('read-only AI Agent tool exposes only the approved read operations', () => 
 	const operations = description.properties
 		.filter((property) => property.name === 'operation')
 		.flatMap((property) => property.options.map((option) => option.value));
-	assert.deepEqual(operations.sort(), ['get', 'get', 'getAll', 'getAll', 'getAll', 'getAll', 'getAll', 'getDeliveries'].sort());
+	assert.deepEqual(operations.sort(), ['get', 'get', 'get', 'getAll', 'getAll', 'getAll', 'getAll', 'getDeliveries'].sort());
 	assert.ok(!operations.some((operation) => ['ask', 'send', 'cancel', 'upsert'].includes(operation)));
 });
 
@@ -200,6 +201,7 @@ test('transport ignores a legacy credential Base URL and always sends to SynapsA
 	const ctx = executeContext({
 		params: { resource: 'conversation', operation: 'getAll' },
 		credentials: { ...CREDENTIALS, baseUrl: 'http://evil.example' },
+		responder: () => ({ items: [], page: 0, size: 50, total: 0 }),
 	});
 	await new SynapsAi().execute.call(ctx);
 	assert.match(ctx.http.calls[0].options.url, /^https:\/\/connect\.synapsai\.app\//);
@@ -294,7 +296,7 @@ test('resume webhook: a signed message.replied resumes with the flattened reply'
 	assert.equal(item.text, 'Sim, temos!');
 	assert.equal(item.messageId, 'msg_w');
 	assert.equal(item.conversationId, 'c1');
-	assert.deepEqual(item.metadata, { dealId: 'D-9' });
+	assert.deepEqual(item.metadata, { dealId: 'D-9', _n8n: 'nonce-1' });
 });
 
 test('resume webhook rejects a validly signed reply with a different wait nonce', async () => {
@@ -431,6 +433,24 @@ test('List conversations: a bare array (not the documented page) is an error, no
 		new SynapsAi().execute.call(ctx),
 		/expected an object|expected \{items, page, size, total\}/,
 	);
+});
+
+test('NodeApiError rethrow preserves the failing input item index', async () => {
+	let calls = 0;
+	const ctx = executeContext({
+		params: { resource: 'conversation', operation: 'get', conversationId: 'c1' },
+		items: [{ json: { i: 0 } }, { json: { i: 1 } }],
+		responder: () => {
+			calls++;
+			if (calls === 2) throw httpError(409, { code: 'CONFLICT', message: 'conflict' });
+			return { id: 'c1' };
+		},
+	});
+	await assert.rejects(new SynapsAi().execute.call(ctx), (error) => {
+		assert.ok(error instanceof NodeApiError);
+		assert.equal(error.context.itemIndex, 1);
+		return true;
+	});
 });
 
 test('Upsert contact: POST /v1/contacts:upsert with mode; refused with nothing to match on', async () => {

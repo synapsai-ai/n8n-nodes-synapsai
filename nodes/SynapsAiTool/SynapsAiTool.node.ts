@@ -1,4 +1,4 @@
-import type { INodeProperties, INodeType, INodeTypeDescription } from 'n8n-workflow';
+import type { INodeProperties, INodePropertyOptions, INodeType, INodeTypeDescription } from 'n8n-workflow';
 import { SynapsAi, properties as mainProperties } from '../SynapsAi/SynapsAi.node';
 import { CREDENTIAL_NAME } from '../shared/transport';
 
@@ -12,31 +12,37 @@ const allowed: Record<string, string[]> = {
 };
 
 function toolProperties(): INodeProperties[] {
-	return mainProperties.flatMap((property) => {
+	const result: INodeProperties[] = [];
+	for (const property of mainProperties) {
 		const shown = property.displayOptions?.show;
 		if (!shown?.resource) {
-			if (property.name !== 'resource') return [];
-			return [{
+			if (property.name !== 'resource') continue;
+			const options = (property.options ?? []) as INodePropertyOptions[];
+			result.push({
 				...property,
-				options: property.options?.filter((option) => Object.hasOwn(allowed, option.value as string)),
-			}];
+				options: options.filter((option) => typeof option.value === 'string' && allowed[option.value] !== undefined),
+			});
+			continue;
 		}
-		const resources = shown.resource.flatMap((resource) => {
+		const resources = shown.resource.filter((resource): resource is string => typeof resource === 'string').flatMap((resource) => {
 			const operations = allowed[resource];
 			if (!operations) return [];
 			if (!shown.operation) return [resource];
-			return shown.operation.some((operation) => operations.includes(operation)) ? [resource] : [];
+			return shown.operation.some((operation) => typeof operation === 'string' && operations.includes(operation)) ? [resource] : [];
 		});
-		if (!resources.length) return [];
+		if (!resources.length) continue;
 		if (property.name === 'operation') {
 			const resource = resources[0];
-			return [{
+			const options = (property.options ?? []) as INodePropertyOptions[];
+			result.push({
 				...property,
-				options: property.options?.filter((option) => allowed[resource]?.includes(option.value as string)),
-			}];
+				options: options.filter((option) => typeof option.value === 'string' && allowed[resource]?.includes(option.value)),
+			});
+			continue;
 		}
-		return [{ ...property, displayOptions: { ...property.displayOptions, show: { ...shown, resource: resources } } }];
-	});
+		result.push({ ...property, displayOptions: { ...property.displayOptions, show: { ...shown, resource: resources } } });
+	}
+	return result;
 }
 
 export class SynapsAiTool extends SynapsAi implements INodeType {
