@@ -49,9 +49,11 @@ function executeContext({
 		waitTill: undefined,
 		resumeUrl: 'https://n8n.example.com/webhook-waiting/42/node-1?signature=abc',
 	};
+	const staticData = {};
 	const ctx = {
 		http,
 		state,
+		staticData,
 		getInputData: () => items,
 		getNodeParameter: (name, i, fallback) => {
 			const value = params[name];
@@ -61,6 +63,7 @@ function executeContext({
 		getNode: fakeNode,
 		getExecutionId: () => 'exec-42',
 		getWorkflow: () => ({ id: 'wf-7' }),
+		getWorkflowStaticData: () => staticData,
 		continueOnFail: () => false,
 		getSignedResumeUrl: () => state.resumeUrl,
 		putExecutionToWait: async (date) => {
