@@ -94,7 +94,7 @@
   },
   "meta": {
     "templateCredsSetupCompleted": false,
-    "description": "Your messaging provider posts each inbound message to this workflow; SynapsAI answers inside it and the reply is sent back through the provider. Wait for Reply requires a public HTTPS n8n URL on port 443 configured with WEBHOOK_URL, plus the Agent Signing Secret in the credential.",
+    "description": "Your messaging provider posts each inbound message to this workflow; SynapsAI answers inside it and the reply is sent back through the provider. Wait for Reply requires a public HTTPS n8n URL on port 443 configured with WEBHOOK_URL, plus the Signing Secret (My account → MCP access) in the credential.",
     "requires": "n8n-nodes-synapsai >= 0.2.2; SynapsAI GROWTH+"
   },
   "tags": []

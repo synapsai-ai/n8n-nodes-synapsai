@@ -17,8 +17,8 @@ Create a **SynapsAI API** credential:
 
 | Field | Value |
 |---|---|
-| API Key | an `sk_live_…` key from the console (Account → API keys). Grant only the scopes the workflow needs: `messages:write` for Ask; `conversations:read` for conversation and message reads; `contacts:read` or `contacts:write` for contact reads or upsert; `leads:read` for leads; `hooks:write` to subscribe a Trigger; `campaigns:read` or `campaigns:write` for campaign reads or writes; `agents:read` for the agent picker. |
-| Agent Signing Secret | the agent’s signing secret: agent → **Extensions** → **Workflow API (n8n · Make)**. Needed for **Wait for Reply**. |
+| API Key | an `sk_live_…` key from the console (**My account** → **MCP access**). A key with **Send messages** (`messages:write`) works with every agent of the account. Grant only the scopes the workflow needs: `messages:write` for Ask; `conversations:read` for conversation and message reads; `contacts:read` or `contacts:write` for contact reads or upsert; `leads:read` for leads; `hooks:write` to subscribe a Trigger; `campaigns:read` or `campaigns:write` for campaign reads or writes; `agents:read` for the agent picker. |
+| Signing Secret | the account signing secret: **My account** → **MCP access** → **Signing secret** → **Generate** (or **Rotate**). One secret for every agent of the account. Needed for **Wait for Reply**. |
 
 Do not give an AI Agent a key with `campaigns:write` or `contacts:write`.
 
@@ -43,7 +43,7 @@ the test fails with **PLAN_FEATURE_UNAVAILABLE**.
 
 SynapsAI answers asynchronously. With **Wait for Reply** on, the node sends the message with this execution’s signed
 resume URL as `callbackUrl` and puts the execution to wait. SynapsAI posts the signed `message.replied` (or
-`message.failed`) to that URL; the node checks the `X-Synapsai-Signature` with the agent signing secret (±5 min) and
+`message.failed`) to that URL; the node checks the `X-Synapsai-Signature` with the account signing secret (±5 min) and
 resumes with:
 
 ```json
@@ -111,9 +111,9 @@ configure each external service before activating the workflow.
 | [Lead captured → CRM](examples/lead-to-crm.json) | Sends captured leads and included contact details to HubSpot. | `hooks:write`, `leads:read`, `contacts:read` | Yes, for the Trigger. |
 | [CSAT radar](examples/csat-radar.json) | Posts conversations rated 1–2 in the last hour to Slack. | `conversations:read` | No. |
 | [Human requested → Slack](examples/handoff-to-slack.json) | Sends a Slack alert with the conversation link after a handoff request. | `hooks:write`, `contacts:read` | Yes, for the Trigger. |
-| [BSP pipeline](examples/bsp-pipeline.json) | Receives a provider message, waits for the agent reply, and sends it back through the provider. | `messages:write` | Yes; Wait for Reply also needs the Agent Signing Secret. |
+| [BSP pipeline](examples/bsp-pipeline.json) | Receives a provider message, waits for the agent reply, and sends it back through the provider. | `messages:write` | Yes; Wait for Reply also needs the Signing Secret. |
 | [Morning digest](examples/morning-digest.json) | Emails yesterday’s conversation and low-CSAT counts on weekdays. | `conversations:read` | No. |
-| [Sheet contacts and lead qualification](examples/sheet-contacts-lead.json) | Upserts each new sheet contact, asks the agent to qualify the lead, then writes the reply back to the row. | `contacts:write`, `messages:write` | Yes; Wait for Reply also needs the Agent Signing Secret. |
+| [Sheet contacts and lead qualification](examples/sheet-contacts-lead.json) | Upserts each new sheet contact, asks the agent to qualify the lead, then writes the reply back to the row. | `contacts:write`, `messages:write` | Yes; Wait for Reply also needs the Signing Secret. |
 | [Latest conversations](examples/latest-conversations.json) | Lists the 10 latest conversations as text. | `conversations:read` | No. |
 | [Latest leads](examples/latest-leads.json) | Lists the 10 latest leads as text. | `leads:read` | No. |
 | [Lead captured to text](examples/lead-captured-to-text.json) | Formats each captured lead event as text. | `hooks:write`, `leads:read` | Yes, for the Trigger. |
