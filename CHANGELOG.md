@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4
+
+- Credential: the "Agent Signing Secret" field is now "Signing Secret": one secret per SynapsAI account, generated or rotated in My account → MCP access, for every agent. The internal field name is unchanged, so existing credentials keep working; paste the account secret into them.
+- Docs: API keys come from My account → MCP access; a key with Send messages (`messages:write`) works with every agent of the account (no per-agent switch).
+
 ## 0.2.3
 
 - Docs: add nine English example workflows and README coverage for n8n Creator Portal verification.

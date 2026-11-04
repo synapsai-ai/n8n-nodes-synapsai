@@ -267,7 +267,7 @@ export const properties: INodeProperties[] = [
 		type: 'boolean',
 		default: true,
 		description:
-			'Whether to pause this execution until the agent replies. Needs the agent signing secret in the credential and an n8n instance reachable over HTTPS.',
+			'Whether to pause this execution until the agent replies. Needs the account signing secret (My account → MCP access) in the credential and an n8n instance reachable over HTTPS.',
 		displayOptions: show('agent', 'ask'),
 	},
 	{
@@ -793,7 +793,7 @@ export class SynapsAi implements INodeType {
 						if (!credentials.signingSecret) {
 							throw new NodeOperationError(
 								this.getNode(),
-								'Wait for Reply needs the Agent Signing Secret in the SynapsAI credential',
+								'Wait for Reply needs the Signing Secret in the SynapsAI credential',
 								{ itemIndex: i },
 							);
 						}
@@ -944,7 +944,7 @@ async function ask(
 	let metadata = parseMetadata.call(this, options.metadata, i);
 	if (resumeUrl) {
 		if (!signingSecret) {
-			throw new NodeOperationError(this.getNode(), 'Wait for Reply needs the Agent Signing Secret', {
+			throw new NodeOperationError(this.getNode(), 'Wait for Reply needs the Signing Secret', {
 				itemIndex: i,
 			});
 		}

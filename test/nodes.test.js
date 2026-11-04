@@ -333,7 +333,7 @@ test('Ask (wait): the resume token URL includes this node path and the execution
 	assert.ok(waitMs >= 3 * 60_000 - 50 && waitMs <= 3 * 60_000 + 5_000, `waited ${waitMs}`);
 });
 
-test('Ask (wait): refused without the agent signing secret, and for more than one item', async () => {
+test('Ask (wait): refused without the signing secret, and for more than one item', async () => {
 	const params = {
 		resource: 'agent',
 		operation: 'ask',

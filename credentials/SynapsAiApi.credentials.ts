@@ -25,16 +25,16 @@ export class SynapsAiApi implements ICredentialType {
 			default: '',
 			placeholder: 'sk_live_…',
 			description:
-				'An API key minted in the SynapsAI console (Account → API keys). Ask agent needs the messages:write scope.',
+				'An API key minted in the SynapsAI console (My account → MCP access). Ask agent needs the messages:write scope (Send messages), which works with every agent of the account.',
 		},
 		{
-			displayName: 'Agent Signing Secret',
+			displayName: 'Signing Secret',
 			name: 'signingSecret',
 			type: 'string',
 			typeOptions: { password: true },
 			default: '',
 			description:
-				'The signing secret of your agent: agent → Extensions → Workflow API (n8n · Make). Required to wait for a reply: the reply is accepted only when its signature matches.',
+				'The signing secret of your SynapsAI account: My account → MCP access. One secret for every agent of the account. Required to wait for a reply: the reply is accepted only when its signature matches.',
 		},
 	];
 
