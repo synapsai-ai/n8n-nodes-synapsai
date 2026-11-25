@@ -2,6 +2,7 @@
 
 ## 0.2.4
 
+- Docs: replies can carry a `summary_card` component (`{"type":"summary_card","props":{…}}`, a cart, order or bill summary) next to `product_list`. Wait for Reply, Message → Get and the trigger hand `components` on unchanged; the README shows the output.
 - Credential: the "Agent Signing Secret" field is now "Signing Secret": one secret per SynapsAI account, generated or rotated in My account → MCP access, for every agent. The internal field name is unchanged, so existing credentials keep working; paste the account secret into them.
 - Docs: API keys come from My account → MCP access; a key with Send messages (`messages:write`) works with every agent of the account (no per-agent switch).
 
