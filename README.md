@@ -50,6 +50,18 @@ resumes with:
 { "status": "REPLIED", "messageId": "msg_…", "conversationId": "…", "text": "…", "components": [], "metadata": {}, "errorCode": null, "event": { } }
 ```
 
+`components` are the agent's rich answers as SynapsAI sends them, each tagged with a `type` (`buttons`,
+`product_list`, `summary_card`, …); the node hands them on unchanged, and `text` always carries the same answer as
+plain text. A cart or order summary, for example, arrives as:
+
+```json
+{ "type": "summary_card", "props": { "status": "info", "title": "Your cart",
+  "lines": [ { "title": "Balboa beer", "variant": "600 ml", "qty": 2, "price": "USD 10.00" } ],
+  "total": { "value": "USD 10.00" } } }
+```
+
+Every field is in the [API reference](https://docs.synapsai.app/workflows/api-reference/#reply-components).
+
 A request with a wrong signature is answered 401 and the execution keeps waiting. After **Limit Wait Time** the
 execution continues with the accepted message (`{messageId, status: "QUEUED"}`); read the reply later with
 **Message → Get**.

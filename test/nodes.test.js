@@ -1199,3 +1199,27 @@ test('429 with Retry-After is retried for idempotent requests only, and only for
 	assert.equal(transport.retryAfterMs({ response: { headers: { 'retry-after': '2' } } }), 2000);
 	assert.equal(transport.retryAfterMs({ response: { headers: {} } }), undefined);
 });
+
+test('replyItem: a summary_card component reaches the next node unchanged, next to product_list', () => {
+	const components = [
+		{ type: 'text', text: 'Here it is:' },
+		{ type: 'product_list', props: { size: 'compact', items: [{ id: 'p_1', title: 'Balboa beer', price: 'USD 5.00' }] } },
+		{
+			type: 'summary_card',
+			props: {
+				status: 'info',
+				title: 'Your cart',
+				lines: [{ title: 'Balboa beer', variant: '600 ml', qty: 2, price: 'USD 10.00', imageUrl: 'https://cdn.example.com/b.jpg' }],
+				total: { value: 'USD 10.00' },
+			},
+		},
+	];
+	const item = replyItem({
+		type: 'message.replied',
+		conversation: { id: 'c1', channel: 'API' },
+		message: { id: 'msg_s', text: 'Your cart: USD 10.00\n• 2 × Balboa beer: USD 10.00', components },
+	});
+	assert.equal(item.status, 'REPLIED');
+	assert.deepEqual(item.components, components);
+	assert.equal(item.text, 'Your cart: USD 10.00\n• 2 × Balboa beer: USD 10.00');
+});
